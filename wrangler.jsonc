@@ -12,12 +12,13 @@
     "enabled": true
   },
 
-  // Banco. Rode `pnpm cf:db:create` e cole o database_id retornado aqui.
+  // Banco. O database_id aponta para um banco dentro desta conta Cloudflare —
+  // quem clonar o projeto precisa rodar `pnpm cf:db:create` e trocar por o seu.
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "vitrine-carros",
-      "database_id": "PREENCHER_APOS_wrangler_d1_create",
+      "database_id": "1c28faa8-dc93-42b4-8f6c-ee6c6519e87d",
       "migrations_dir": "migrations"
     }
   ],
