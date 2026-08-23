@@ -13,8 +13,9 @@ export function SiteFooter({ availableCount }: { availableCount: number }) {
     <footer className="mt-auto border-t bg-background">
       <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-3 px-5 pt-7 pb-24">
         <p className="text-[13px] text-muted-foreground">
-          {site.name} · {plural(availableCount, "veículo", "veículos")} no pátio ·{" "}
-          {site.hours}
+          {site.name} ·{" "}
+          {plural(availableCount, "veículo disponível", "veículos disponíveis")} ·{" "}
+          {site.note}
         </p>
         <a
           href={whatsappLink(`Olá! Vi o catálogo da ${site.name}.`)}

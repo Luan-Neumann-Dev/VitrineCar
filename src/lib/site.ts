@@ -8,7 +8,8 @@ export const site = {
   tagline:
     process.env.NEXT_PUBLIC_STORE_TAGLINE ||
     "Revenda de carros seminovos · Campinas, SP",
-  hours: process.env.NEXT_PUBLIC_STORE_HOURS || "Atendimento de seg a sáb, 9h às 19h",
+  /** Linha livre no rodapé: horário, forma de atendimento, o que fizer sentido. */
+  note: process.env.NEXT_PUBLIC_STORE_NOTE || "Atendimento por WhatsApp",
   whatsapp: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5519998877665",
   url: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
   /** Dominio publico do bucket R2. Vazio ate o bucket existir (fase 2). */

@@ -116,24 +116,26 @@ Para usar domínio próprio, ele precisa estar **dentro da sua conta Cloudflare*
 
 ## 8. Colocar os dados reais da loja
 
-Crie o arquivo `.env.production` copiando o `.env.example`, e preencha:
+Os dados ficam em dois arquivos, os dois versionados:
+
+- **[.env](.env)** — o que vale em qualquer ambiente: nome, cidade, telefone.
+- **[.env.production](.env.production)** — só o que muda em produção: o endereço
+  do site e o domínio das fotos.
+
+Ajuste o `NEXT_PUBLIC_SITE_URL` no `.env.production` para o endereço que o passo
+6 imprimiu (ou o seu domínio, se fez o passo 7):
 
 ```
-NEXT_PUBLIC_STORE_NAME="Almeida Veículos"
-NEXT_PUBLIC_STORE_TAGLINE="Revenda de carros seminovos · Campinas, SP"
-NEXT_PUBLIC_STORE_HOURS="Atendimento de seg a sáb, 9h às 19h"
-NEXT_PUBLIC_WHATSAPP_NUMBER="5519998877665"
-NEXT_PUBLIC_SITE_URL="https://almeidaveiculos.com.br"
-NEXT_PUBLIC_PHOTOS_BASE_URL=""
+NEXT_PUBLIC_SITE_URL="https://vitrine-carros.SEU-NOME.workers.dev"
 ```
 
 Dois cuidados:
 
 - **`NEXT_PUBLIC_WHATSAPP_NUMBER`** vai com código do país e só números:
   `55` + DDD + telefone. Sem espaço, traço ou parênteses.
-- **`NEXT_PUBLIC_SITE_URL`** é o endereço final do site, com `https://` e **sem
-  barra no fim**. É ele que entra no link que o Google indexa e na prévia que
-  aparece quando alguém manda o anúncio no WhatsApp.
+- **`NEXT_PUBLIC_SITE_URL`** vai com `https://` e **sem barra no fim**. É ele que
+  entra no link que o Google indexa e na prévia que aparece quando alguém manda o
+  anúncio no WhatsApp.
 
 Publique de novo para os valores entrarem:
 
@@ -144,6 +146,24 @@ pnpm cf:deploy
 > Esses valores são lidos **na hora de publicar**, não enquanto o site roda. Toda
 > vez que mudar o telefone ou o nome da loja, precisa rodar `pnpm cf:deploy` de
 > novo.
+
+### ⚠ Nunca coloque senha em arquivo `.env`
+
+Arquivos `.env` são compilados **para dentro** do bundle que vai ao ar. Pior: o
+Next carrega o `.env.local` também no build de produção, e com precedência
+**maior** que o `.env.production` — então um `ADMIN_PASSWORD` deixado ali para
+desenvolvimento é publicado junto com o site.
+
+A regra: arquivos `.env` só podem ter `NEXT_PUBLIC_*`. Segredo vai por
+`wrangler secret put` (produção) e `.dev.vars` (local), que o build nunca lê.
+
+Isso é verificado automaticamente antes de todo build — o `pnpm cf:deploy` roda
+[scripts/check-env.ts](scripts/check-env.ts) e falha se achar qualquer variável
+que não seja `NEXT_PUBLIC_*` nesses arquivos. Para checar sozinho:
+
+```bash
+pnpm check:env
+```
 
 ## 9. Entrar no painel e cadastrar os carros
 
@@ -264,12 +284,19 @@ taskkill /F /IM workerd.exe
 
 # Rodando na sua máquina
 
-```bash
-cp .env.example .env.local
+Os dados da loja já vêm do `.env` versionado. Falta só criar o `.dev.vars`, que
+guarda os segredos locais e **não** vai para o Git:
+
+```
+ADMIN_PASSWORD="qualquer-coisa-local"
+ADMIN_SESSION_SECRET="qualquer-coisa-local"
 ```
 
-Preencha no `.env.local` o `ADMIN_PASSWORD` e o `ADMIN_SESSION_SECRET` (qualquer
-valor serve, é só local). Depois crie o banco local com os 12 exemplos:
+Tanto o `pnpm dev` quanto o `pnpm cf:preview` leem daí — o `next dev` sobe um
+runtime da Cloudflare por baixo, então os dois enxergam o mesmo arquivo. Nunca
+coloque esses dois valores num `.env`.
+
+Crie o banco local com os 12 exemplos:
 
 ```bash
 pnpm db:reset:local
@@ -279,8 +306,10 @@ pnpm db:reset:local
 pnpm dev
 ```
 
-Para testar no runtime real da Cloudflare em vez do Node, crie um arquivo
-`.dev.vars` com essas mesmas duas chaves e rode:
+> Se trocar o `database_id` no `wrangler.jsonc`, o banco local zera: o Miniflare
+> guarda um banco separado por id. É só rodar `pnpm db:reset:local` de novo.
+
+Para testar no runtime real da Cloudflare em vez do Node:
 
 ```bash
 pnpm cf:preview
@@ -368,13 +397,16 @@ alguns KB, e com 10 GB grátis não vale código para caçá-las.
 | --- | --- |
 | `NEXT_PUBLIC_STORE_NAME` | Nome no cabeçalho, rodapé e mensagens do WhatsApp |
 | `NEXT_PUBLIC_STORE_TAGLINE` | Linha abaixo do nome |
-| `NEXT_PUBLIC_STORE_HOURS` | Horário exibido no rodapé |
+| `NEXT_PUBLIC_STORE_NOTE` | Linha livre no rodapé (horário, forma de atendimento…) |
 | `NEXT_PUBLIC_WHATSAPP_NUMBER` | Número com DDI, só dígitos (ex.: `5519998877665`) |
 | `NEXT_PUBLIC_SITE_URL` | Domínio do site — canonical, sitemap e dados estruturados |
 | `NEXT_PUBLIC_PHOTOS_BASE_URL` | Domínio público do bucket R2 (opcional) |
 | `ADMIN_PASSWORD` | Senha do painel — **segredo**, nunca `NEXT_PUBLIC` |
 | `ADMIN_SESSION_SECRET` | Chave que assina o cookie de sessão — **segredo** |
 
-As `NEXT_PUBLIC_*` são lidas no build e aparecem no HTML — não há segredo nelas.
-As duas últimas vão por `wrangler secret put` e nunca entram em arquivo
-versionado.
+As `NEXT_PUBLIC_*` são lidas no build e aparecem no HTML — não há segredo nelas,
+e por isso o `.env` e o `.env.production` são versionados.
+
+As duas últimas **nunca** entram em arquivo `.env`: vão por `wrangler secret put`
+em produção e por `.dev.vars` no local. O `pnpm check:env` derruba o build se
+alguma escapar.

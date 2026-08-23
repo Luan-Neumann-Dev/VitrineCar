@@ -31,8 +31,12 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
+# Arquivos .env aqui contem apenas NEXT_PUBLIC_*, que ja sao publicos —
+# por isso sao versionados. Segredo vai por wrangler secret / .dev.vars.
 .env*
 !.env.example
+!.env
+!.env.production
 
 # vercel
 .vercel
