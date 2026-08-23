@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vitrine-carros",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-03-25",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+
+  // Banco. Rode `pnpm cf:db:create` e cole o database_id retornado aqui.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "vitrine-carros",
+      "database_id": "PREENCHER_APOS_wrangler_d1_create",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // Fotos dos anuncios. Usado a partir da fase 2 (upload no painel).
+  "r2_buckets": [
+    {
+      "binding": "PHOTOS",
+      "bucket_name": "vitrine-carros-fotos"
+    }
+  ]
+}
