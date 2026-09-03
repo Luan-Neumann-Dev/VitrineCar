@@ -38,6 +38,7 @@ export const listVehicles = cache(async (): Promise<Vehicle[]> => {
   return rows.map((row) => ({
     ...row,
     features: Array.isArray(row.features) ? row.features : [],
+    tags: Array.isArray(row.tags) ? row.tags : [],
     photos: byVehicle.get(row.id) ?? [],
   }));
 });

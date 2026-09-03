@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, Plus, X } from "lucide-react";
+import { Car, Check, Motorbike, Plus, X } from "lucide-react";
 
 import { PhotoManager } from "@/components/admin/photo-manager";
+import { TagEditor } from "@/components/admin/tag-editor";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -14,13 +15,25 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { VehicleDraft } from "@/app/admin/actions";
-import { VEHICLE_STATUSES } from "@/db/schema";
-import { FEATURE_SUGGESTIONS } from "@/lib/draft";
+import { VEHICLE_STATUSES, type VehicleKind } from "@/db/schema";
+import { draftWithKind } from "@/lib/draft";
 import { STATUS_LABELS } from "@/lib/vehicle";
+import {
+  BRAKES,
+  COOLING,
+  FEATURE_SUGGESTIONS,
+  FUELS,
+  KIND_LABELS,
+  START_TYPES,
+  TRANSMISSIONS,
+  VEHICLE_KINDS,
+} from "@/lib/vehicle-kind";
 import { cn } from "@/lib/utils";
 
 const numbers = new Intl.NumberFormat("pt-BR");
 const onlyDigits = (value: string) => Number(value.replace(/\D/g, "")) || 0;
+
+const KIND_ICONS: Record<VehicleKind, typeof Car> = { carro: Car, moto: Motorbike };
 
 type Props = {
   draft: VehicleDraft;
@@ -35,6 +48,7 @@ type Field =
       kind: "text";
       label: string;
       value: string;
+      placeholder: string;
       inputMode?: "numeric";
       onChange: (value: string) => void;
     }
@@ -42,61 +56,112 @@ type Field =
       kind: "select";
       label: string;
       value: string;
+      placeholder: string;
       options: { value: string; label: string }[];
       onChange: (value: string) => void;
     };
 
 export function AdEditor({ draft, pending, onChange, onSave, onCancel }: Props) {
-  const text = (label: string, key: keyof VehicleDraft): Field => ({
+  const isMoto = draft.kind === "moto";
+
+  const text = (
+    label: string,
+    key: keyof VehicleDraft,
+    placeholder: string,
+  ): Field => ({
     kind: "text",
     label,
+    placeholder,
     value: String(draft[key] ?? ""),
     onChange: (value) => onChange({ [key]: value } as Partial<VehicleDraft>),
   });
 
-  const digits = (label: string, key: keyof VehicleDraft, grouped = false): Field => ({
+  const digits = (
+    label: string,
+    key: keyof VehicleDraft,
+    placeholder: string,
+    grouped = false,
+  ): Field => ({
     kind: "text",
     label,
+    placeholder,
     inputMode: "numeric",
-    value: draft[key] ? (grouped ? numbers.format(Number(draft[key])) : String(draft[key])) : "",
+    value: draft[key]
+      ? grouped
+        ? numbers.format(Number(draft[key]))
+        : String(draft[key])
+      : "",
     onChange: (value) => onChange({ [key]: onlyDigits(value) } as Partial<VehicleDraft>),
   });
 
-  const select = (label: string, key: keyof VehicleDraft, options: string[]): Field => ({
+  const select = (
+    label: string,
+    key: keyof VehicleDraft,
+    options: string[],
+    placeholder = "Escolha",
+  ): Field => ({
     kind: "select",
     label,
+    placeholder,
     value: String(draft[key] ?? ""),
     options: options.map((option) => ({ value: option, label: option })),
     onChange: (value) => onChange({ [key]: value } as Partial<VehicleDraft>),
   });
 
+  // Campos comuns, depois os do tipo, depois documento e situação. Trocar o
+  // tipo troca a lista inteira — moto não tem porta, carro não tem cilindrada.
   const fields: Field[] = [
-    text("Marca", "brand"),
-    text("Modelo", "model"),
-    text("Versão", "version"),
-    digits("Ano de fabricação", "yearFab"),
-    digits("Ano do modelo", "year"),
-    digits("Preço (R$)", "price", true),
-    digits("Quilometragem (km)", "mileage", true),
-    select("Câmbio", "transmission", ["Automático", "CVT", "Manual", "Automatizado"]),
-    select("Combustível", "fuel", ["Flex", "Gasolina", "Diesel", "Híbrido", "Elétrico"]),
-    text("Cor", "color"),
-    {
-      kind: "select",
-      label: "Portas",
-      value: String(draft.doors),
-      options: [
-        { value: "2", label: "2" },
-        { value: "4", label: "4" },
-      ],
-      // `doors` é número no banco: converter aqui evita gravar "4" como texto.
-      onChange: (value) => onChange({ doors: Number(value) }),
-    },
-    text("Motor", "engine"),
-    text("Final da placa", "plateEnd"),
+    text("Marca", "brand", isMoto ? "Honda" : "Chevrolet"),
+    text("Modelo", "model", isMoto ? "CG 160" : "Onix"),
+    text("Versão", "version", isMoto ? "Titan Start" : "1.0 Turbo LTZ"),
+    digits("Ano de fabricação", "yearFab", "2022"),
+    digits("Ano do modelo", "year", "2023"),
+    digits("Preço (R$)", "price", isMoto ? "14.900" : "89.900", true),
+    digits("Quilometragem (km)", "mileage", isMoto ? "12.400" : "38.400", true),
+    select("Câmbio", "transmission", TRANSMISSIONS[draft.kind]),
+    select("Combustível", "fuel", FUELS[draft.kind]),
+    text("Cor", "color", isMoto ? "Vermelha" : "Prata"),
+
+    ...(isMoto
+      ? [
+          digits("Cilindrada (cc)", "displacement", "160"),
+          {
+            kind: "select" as const,
+            label: "Marchas",
+            // Scooter fica em branco: o câmbio já diz "Automática (CVT)".
+            placeholder: "Quantas marchas",
+            value: String(draft.gears || ""),
+            options: [3, 4, 5, 6].map((n) => ({
+              value: String(n),
+              label: `${n} marchas`,
+            })),
+            onChange: (value: string) => onChange({ gears: Number(value) }),
+          },
+          select("Partida", "startType", START_TYPES, "Elétrica, pedal…"),
+          select("Freios", "brakes", BRAKES, "ABS, CBS, disco…"),
+          select("Refrigeração", "cooling", COOLING, "Ar ou líquida"),
+        ]
+      : [
+          {
+            kind: "select" as const,
+            label: "Portas",
+            placeholder: "2 ou 4",
+            value: String(draft.doors || ""),
+            options: [
+              { value: "2", label: "2 portas" },
+              { value: "4", label: "4 portas" },
+            ],
+            // `doors` é número no banco: converter aqui evita gravar "4" como texto.
+            onChange: (value: string) => onChange({ doors: Number(value) }),
+          },
+          text("Motor", "engine", "1.0 Turbo 12V"),
+        ]),
+
+    text("Final da placa", "plateEnd", "7"),
     {
       kind: "select",
       label: "Situação",
+      placeholder: "Escolha",
       value: draft.status,
       options: VEHICLE_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] })),
       onChange: (value) => onChange({ status: value as VehicleDraft["status"] }),
@@ -111,9 +176,10 @@ export function AdEditor({ draft, pending, onChange, onSave, onCancel }: Props) 
 
   // Sugestões primeiro, e no fim os opcionais que o anúncio já tem mas não
   // estão na lista padrão — assim nada que o vendedor escreveu some da tela.
+  const suggestions = FEATURE_SUGGESTIONS[draft.kind];
   const features = [
-    ...FEATURE_SUGGESTIONS,
-    ...draft.features.filter((f) => !FEATURE_SUGGESTIONS.includes(f)),
+    ...suggestions,
+    ...draft.features.filter((f) => !suggestions.includes(f)),
   ];
 
   const actions = (size: "sm" | "lg") => (
@@ -152,6 +218,39 @@ export function AdEditor({ draft, pending, onChange, onSave, onCancel }: Props) 
         {actions("sm")}
       </div>
 
+      <div className="flex flex-col gap-2.5">
+        <span className="text-[11.5px] tracking-wider text-muted-foreground uppercase">
+          Tipo do veículo
+        </span>
+        <div role="radiogroup" aria-label="Tipo do veículo" className="flex gap-2">
+          {VEHICLE_KINDS.map((kind) => {
+            const Icon = KIND_ICONS[kind];
+            const on = draft.kind === kind;
+            return (
+              <button
+                key={kind}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => onChange(draftWithKind(draft, kind))}
+                className={cn(
+                  "inline-flex h-9.5 items-center gap-2 rounded-md border px-4 text-[13.5px] font-medium transition-colors",
+                  on
+                    ? "border-zinc-900 bg-zinc-900 text-zinc-50"
+                    : "bg-background text-muted-foreground hover:border-zinc-400 hover:text-foreground",
+                )}
+              >
+                <Icon className="size-4 stroke-[1.75]" aria-hidden="true" />
+                {KIND_LABELS[kind]}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[12.5px] text-muted-foreground">
+          Muda os campos da ficha técnica e a lista de opcionais.
+        </p>
+      </div>
+
       <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
         {fields.map((field) => (
           <label key={field.label} className="flex flex-col gap-1.5">
@@ -161,6 +260,7 @@ export function AdEditor({ draft, pending, onChange, onSave, onCancel }: Props) 
             {field.kind === "text" ? (
               <Input
                 value={field.value}
+                placeholder={field.placeholder}
                 inputMode={"inputMode" in field ? field.inputMode : undefined}
                 onChange={(e) => field.onChange(e.target.value)}
                 className="h-[38px] rounded-md bg-background"
@@ -168,7 +268,7 @@ export function AdEditor({ draft, pending, onChange, onSave, onCancel }: Props) 
             ) : (
               <Select value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger className="h-[38px] w-full rounded-md bg-background">
-                  <SelectValue />
+                  <SelectValue placeholder={field.placeholder} />
                 </SelectTrigger>
                 <SelectContent>
                   {field.options.map((option) => (
@@ -261,6 +361,10 @@ export function AdEditor({ draft, pending, onChange, onSave, onCancel }: Props) 
 
       <div className="h-px bg-border" />
 
+      <TagEditor tags={draft.tags} onChange={(tags) => onChange({ tags })} />
+
+      <div className="h-px bg-border" />
+
       <label className="flex flex-col gap-1.5">
         <span className="text-[11.5px] tracking-wider text-muted-foreground uppercase">
           Observações do vendedor
@@ -269,7 +373,11 @@ export function AdEditor({ draft, pending, onChange, onSave, onCancel }: Props) 
           rows={4}
           value={draft.description}
           onChange={(e) => onChange({ description: e.target.value })}
-          placeholder="Histórico de revisões, detalhes de conservação, condições de troca…"
+          placeholder={
+            isMoto
+              ? "Ex.: Segunda dona, sempre guardada na garagem. Revisões em dia, pneus e relação trocados há 2 mil km. Documento 2026 pago, pronta para transferir."
+              : "Ex.: Revisões feitas na concessionária, todas na agenda digital. Pneus trocados há 6 mil km, sem retoques de pintura. Aceito troca por carro de menor valor."
+          }
           className="rounded-md bg-background text-sm leading-relaxed"
         />
       </label>

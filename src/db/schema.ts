@@ -20,11 +20,21 @@ export const VEHICLE_STATUSES = [
 
 export type VehicleStatus = (typeof VEHICLE_STATUSES)[number];
 
+/**
+ * Tipo do veiculo. Define quais campos o editor mostra e o que a ficha
+ * tecnica exibe — moto nao tem porta, carro nao tem cilindrada.
+ */
+export const VEHICLE_KINDS = ["carro", "moto"] as const;
+
+export type VehicleKind = (typeof VEHICLE_KINDS)[number];
+
 export const vehicles = sqliteTable(
   "vehicles",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     slug: text("slug").notNull(),
+
+    kind: text("kind").$type<VehicleKind>().notNull().default("carro"),
 
     brand: text("brand").notNull(),
     model: text("model").notNull(),
@@ -41,9 +51,17 @@ export const vehicles = sqliteTable(
     transmission: text("transmission").notNull().default("Automático"),
     fuel: text("fuel").notNull().default("Flex"),
     color: text("color").notNull().default(""),
+    /** Carro. Moto usa `displacement`. */
     doors: integer("doors").notNull().default(4),
     engine: text("engine").notNull().default(""),
     plateEnd: text("plate_end").notNull().default(""),
+
+    /** Moto: cilindrada em cc, marchas, e os itens que todo anuncio informa. */
+    displacement: integer("displacement").notNull().default(0),
+    gears: integer("gears").notNull().default(0),
+    startType: text("start_type").notNull().default(""),
+    brakes: text("brakes").notNull().default(""),
+    cooling: text("cooling").notNull().default(""),
 
     ipvaPaid: integer("ipva_paid", { mode: "boolean" }).notNull().default(true),
     oneOwner: integer("one_owner", { mode: "boolean" }).notNull().default(false),
@@ -55,6 +73,15 @@ export const vehicles = sqliteTable(
 
     /** Lista de opcionais serializada em JSON. Nunca e filtrada no banco. */
     features: text("features", { mode: "json" })
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'`),
+
+    /**
+     * Etiquetas livres do vendedor ("Único dono", "Aceito troca", "Baixa km").
+     * Aparecem no card e no anuncio, e viram filtro clicavel na vitrine.
+     */
+    tags: text("tags", { mode: "json" })
       .$type<string[]>()
       .notNull()
       .default(sql`'[]'`),

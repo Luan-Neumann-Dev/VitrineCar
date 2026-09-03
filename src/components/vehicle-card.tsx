@@ -4,7 +4,7 @@ import Link from "next/link";
 import { PhotoFill } from "@/components/photo-fill";
 import { StatusBadge } from "@/components/status-badge";
 import { brl, km } from "@/lib/format";
-import { title as vehicleTitle, type Vehicle } from "@/lib/vehicle";
+import { cc, title as vehicleTitle, type Vehicle } from "@/lib/vehicle";
 
 export function VehicleCard({
   vehicle,
@@ -17,9 +17,19 @@ export function VehicleCard({
   const meta = [
     { icon: Calendar, value: `${vehicle.yearFab}/${vehicle.year}` },
     { icon: Gauge, value: km(vehicle.mileage) },
-    { icon: Settings2, value: vehicle.transmission },
+    {
+      icon: Settings2,
+      // Na moto a cilindrada informa mais que o câmbio; sem ela, cai no câmbio.
+      value:
+        vehicle.kind === "moto"
+          ? cc(vehicle.displacement) || vehicle.transmission
+          : vehicle.transmission,
+    },
     { icon: Fuel, value: vehicle.fuel },
-  ];
+  ].filter((item) => item.value);
+
+  // Três etiquetas é o que cabe em duas linhas na largura do card.
+  const tags = vehicle.tags.slice(0, 3);
 
   return (
     <Link
@@ -32,6 +42,7 @@ export function VehicleCard({
           <PhotoFill
             photo={vehicle.photos[0]}
             alt={`${title} ${vehicle.version} — foto principal`}
+            kind={vehicle.kind}
             variant="thumb"
             priority={priority}
           />
@@ -63,6 +74,19 @@ export function VehicleCard({
             </span>
           ))}
         </div>
+
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex h-6 items-center rounded-md bg-muted px-2 text-[12px] font-medium text-muted-foreground"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </Link>
   );

@@ -5,15 +5,23 @@ import { asc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
-import { vehicleImages, vehicles, type VehicleStatus } from "@/db/schema";
+import {
+  VEHICLE_KINDS,
+  vehicleImages,
+  vehicles,
+  type VehicleKind,
+  type VehicleStatus,
+} from "@/db/schema";
 import { login, logout, requireSession } from "@/lib/auth";
 import { slugify } from "@/lib/format";
 import { objectKey, type Photo } from "@/lib/photos";
+import { normalizeTags } from "@/lib/vehicle-kind";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
 export type VehicleDraft = {
   id: number | null;
+  kind: VehicleKind;
   brand: string;
   model: string;
   version: string;
@@ -27,11 +35,17 @@ export type VehicleDraft = {
   doors: number;
   engine: string;
   plateEnd: string;
+  displacement: number;
+  gears: number;
+  startType: string;
+  brakes: string;
+  cooling: string;
   ipvaPaid: boolean;
   oneOwner: boolean;
   inspection: boolean;
   status: VehicleStatus;
   features: string[];
+  tags: string[];
   description: string;
   photos: Photo[];
 };
@@ -95,8 +109,14 @@ export async function saveVehicleAction(draft: VehicleDraft): Promise<ActionResu
     draft.id,
   );
 
+  // O tipo chega do cliente: um valor fora da lista viraria uma ficha tecnica
+  // sem campo nenhum, entao cai no padrao.
+  const kind: VehicleKind = VEHICLE_KINDS.includes(draft.kind) ? draft.kind : "carro";
+  const isMoto = kind === "moto";
+
   const values = {
     slug,
+    kind,
     brand: draft.brand.trim(),
     model: draft.model.trim(),
     version: draft.version.trim(),
@@ -107,14 +127,22 @@ export async function saveVehicleAction(draft: VehicleDraft): Promise<ActionResu
     transmission: draft.transmission,
     fuel: draft.fuel,
     color: draft.color.trim(),
-    doors: draft.doors,
-    engine: draft.engine.trim(),
+    // Cada tipo grava so os seus campos: assim trocar carro/moto num anuncio
+    // ja salvo nao deixa "1.0 Turbo" pendurado numa moto.
+    doors: isMoto ? 0 : draft.doors,
+    engine: isMoto ? "" : draft.engine.trim(),
+    displacement: isMoto ? draft.displacement : 0,
+    gears: isMoto ? draft.gears : 0,
+    startType: isMoto ? draft.startType.trim() : "",
+    brakes: isMoto ? draft.brakes.trim() : "",
+    cooling: isMoto ? draft.cooling.trim() : "",
     plateEnd: draft.plateEnd.trim(),
     ipvaPaid: draft.ipvaPaid,
     oneOwner: draft.oneOwner,
     inspection: draft.inspection,
     status: draft.status,
     features: draft.features,
+    tags: normalizeTags(draft.tags),
     description: draft.description.trim(),
     updatedAt: Math.floor(Date.now() / 1000),
   };

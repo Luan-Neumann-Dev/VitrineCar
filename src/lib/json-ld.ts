@@ -10,6 +10,28 @@ const AVAILABILITY: Record<string, string> = {
 };
 
 /**
+ * Motor. No carro e o texto que o vendedor escreveu ("1.0 Turbo 12V"); na
+ * moto e a cilindrada, que o schema.org expressa como valor com unidade.
+ */
+function engineSpec(vehicle: Vehicle) {
+  if (vehicle.kind === "moto") {
+    if (!vehicle.displacement) return undefined;
+    return {
+      "@type": "EngineSpecification",
+      engineDisplacement: {
+        "@type": "QuantitativeValue",
+        value: vehicle.displacement,
+        unitCode: "CMQ", // centimetro cubico
+      },
+    };
+  }
+
+  return vehicle.engine
+    ? { "@type": "EngineSpecification", name: vehicle.engine }
+    : undefined;
+}
+
+/**
  * Dados estruturados do anuncio.
  *
  * E isso que faz o carro aparecer na busca do Google com preco e ano, em vez
@@ -25,7 +47,9 @@ export function vehicleJsonLd(vehicle: Vehicle) {
     "@context": "https://schema.org",
     "@graph": [
       {
-        "@type": "Car",
+        // schema.org tem Motorcycle como irmao de Car; usar o tipo certo e o
+        // que permite ao Google mostrar o resultado como moto.
+        "@type": vehicle.kind === "moto" ? "Motorcycle" : "Car",
         "@id": url,
         name: fullTitle(vehicle),
         url,
@@ -36,12 +60,10 @@ export function vehicleJsonLd(vehicle: Vehicle) {
         productionDate: String(vehicle.yearFab),
         vehicleModelDate: String(vehicle.year),
         color: vehicle.color || undefined,
-        numberOfDoors: vehicle.doors,
+        numberOfDoors: vehicle.kind === "moto" ? undefined : vehicle.doors,
         vehicleTransmission: vehicle.transmission,
         fuelType: vehicle.fuel,
-        vehicleEngine: vehicle.engine
-          ? { "@type": "EngineSpecification", name: vehicle.engine }
-          : undefined,
+        vehicleEngine: engineSpec(vehicle),
         mileageFromOdometer: {
           "@type": "QuantitativeValue",
           value: vehicle.mileage,

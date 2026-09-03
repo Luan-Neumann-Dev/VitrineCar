@@ -1,11 +1,14 @@
-import { Car } from "lucide-react";
+import { Car, Motorbike } from "lucide-react";
 
+import type { VehicleKind } from "@/db/schema";
 import { photoUrl, type Photo, type PhotoVariant } from "@/lib/photos";
 import { cn } from "@/lib/utils";
 
 type Props = {
   photo?: Photo;
   alt: string;
+  /** Desenha o placeholder certo enquanto o anuncio nao tem foto. */
+  kind?: VehicleKind;
   /** Tamanho do icone de placeholder quando o anuncio ainda nao tem arquivo. */
   iconClassName?: string;
   className?: string;
@@ -26,6 +29,7 @@ type Props = {
 export function PhotoFill({
   photo,
   alt,
+  kind = "carro",
   iconClassName = "size-14",
   className,
   contain,
@@ -35,12 +39,13 @@ export function PhotoFill({
   const url = photo ? photoUrl(photo, variant) : null;
 
   if (!url) {
+    const Placeholder = kind === "moto" ? Motorbike : Car;
     return (
       <div
         className={cn("absolute inset-0 grid place-items-center", className)}
         aria-hidden="true"
       >
-        <Car className={cn("stroke-[1.25] text-zinc-400", iconClassName)} />
+        <Placeholder className={cn("stroke-[1.25] text-zinc-400", iconClassName)} />
       </div>
     );
   }

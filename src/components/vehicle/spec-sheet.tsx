@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import Link from "next/link";
 
 import { specs, type Vehicle } from "@/lib/vehicle";
 
@@ -20,6 +21,28 @@ export function SpecSheet({ vehicle }: { vehicle: Vehicle }) {
         ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * Etiquetas do anuncio. Cada uma leva de volta ao catalogo ja filtrada — quem
+ * se interessou por "Aceito troca" provavelmente quer ver os outros tambem.
+ */
+export function TagList({ tags }: { tags: string[] }) {
+  if (!tags.length) return null;
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {tags.map((tag) => (
+        <Link
+          key={tag}
+          href={`/?etiqueta=${encodeURIComponent(tag)}`}
+          className="inline-flex h-7.5 items-center rounded-md border bg-card px-2.5 text-[13px] font-medium transition-colors hover:border-zinc-400 hover:bg-muted"
+        >
+          {tag}
+        </Link>
+      ))}
+    </div>
   );
 }
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Expand } from "lucide-react";
 import { useCallback, useState, type UIEvent } from "react";
 
 import { PhotoFill } from "@/components/photo-fill";
 import { PhotoLightbox } from "@/components/vehicle/photo-lightbox";
+import type { VehicleKind } from "@/db/schema";
 import type { Photo } from "@/lib/photos";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +14,15 @@ import { cn } from "@/lib/utils";
  * medicao de largura em JS: assim nao ha salto entre o HTML do servidor e a
  * hidratacao. Sao no maximo ~10 miniaturas, entao o custo e irrelevante.
  */
-export function Gallery({ photos, title }: { photos: Photo[]; title: string }) {
+export function Gallery({
+  photos,
+  kind,
+  title,
+}: {
+  photos: Photo[];
+  kind: VehicleKind;
+  title: string;
+}) {
   const [index, setIndex] = useState(0);
   const [lightbox, setLightbox] = useState(false);
   const total = photos.length;
@@ -27,9 +36,17 @@ export function Gallery({ photos, title }: { photos: Photo[]; title: string }) {
     [total],
   );
 
+  const open = (at: number) => {
+    if (!total) return;
+    setIndex(at);
+    setLightbox(true);
+  };
+
+  // Slides ocupam a largura inteira da tira, sem espaco entre eles: e a
+  // divisao por essa largura que diz em qual foto a rolagem parou.
   const onStripScroll = (event: UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
-    const next = Math.round(el.scrollLeft / (el.clientWidth + 8));
+    const next = Math.round(el.scrollLeft / el.clientWidth);
     if (next !== index) setIndex(Math.max(0, Math.min(next, total - 1)));
   };
 
@@ -43,20 +60,21 @@ export function Gallery({ photos, title }: { photos: Photo[]; title: string }) {
         onKeyDown={(event) => {
           if (event.key === "ArrowRight") { event.preventDefault(); step(1); }
           if (event.key === "ArrowLeft") { event.preventDefault(); step(-1); }
-          if (event.key === "Enter") { event.preventDefault(); setLightbox(true); }
+          if (event.key === "Enter") { event.preventDefault(); open(index); }
         }}
         className="hidden flex-col gap-2.5 rounded-lg lg:flex"
       >
         <div className="relative aspect-4/3 overflow-hidden rounded-lg border bg-muted">
           <button
             type="button"
-            onClick={() => setLightbox(true)}
+            onClick={() => open(index)}
             aria-label="Ampliar foto em tela cheia"
             className="absolute inset-0 flex size-full cursor-zoom-in flex-col items-center justify-center gap-3"
           >
             <PhotoFill
               photo={current}
               alt={`${title} — ${current?.label ?? "sem fotos"}`}
+              kind={kind}
               iconClassName="size-22"
               priority
             />
@@ -98,35 +116,64 @@ export function Gallery({ photos, title }: { photos: Photo[]; title: string }) {
                     : "opacity-70 hover:opacity-100",
                 )}
               >
-                <PhotoFill photo={photo} alt={photo.label} variant="thumb" iconClassName="size-6.5" />
+                <PhotoFill
+                  photo={photo}
+                  alt={photo.label}
+                  kind={kind}
+                  variant="thumb"
+                  iconClassName="size-6.5"
+                />
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* Mobile: tira com scroll-snap e indicadores */}
-      <div className="flex flex-col gap-2.5 lg:hidden">
-        <div
-          onScroll={onStripScroll}
-          className="no-scrollbar flex snap-x snap-mandatory gap-2 overflow-x-auto rounded-lg"
-        >
-          {(total ? photos : [undefined]).map((photo, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => { setIndex(i); setLightbox(true); }}
-              aria-label={photo ? `Ampliar foto ${i + 1} de ${total}: ${photo.label}` : "Sem fotos"}
-              className="relative flex aspect-4/3 shrink-0 basis-full cursor-zoom-in snap-center flex-col items-center justify-center gap-2.5 overflow-hidden rounded-lg border bg-muted"
+      {/*
+        Mobile: a tira sangra até as bordas da tela (-mx-5 anula o padding da
+        página). São ~40px a mais de largura e um terço a mais de área — a foto
+        do carro é o conteúdo principal da página, não uma ilustração.
+      */}
+      <div className="-mx-5 flex flex-col gap-3 lg:hidden">
+        <div className="relative">
+          <div
+            onScroll={onStripScroll}
+            className="no-scrollbar flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
+          >
+            {(total ? photos : [undefined]).map((photo, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => open(i)}
+                aria-label={
+                  photo ? `Ampliar foto ${i + 1} de ${total}: ${photo.label}` : "Sem fotos"
+                }
+                className="relative flex aspect-4/3 w-full shrink-0 snap-center flex-col items-center justify-center gap-2.5 bg-muted"
+              >
+                <PhotoFill
+                  photo={photo}
+                  alt={photo?.label ?? title}
+                  kind={kind}
+                  iconClassName="size-16"
+                />
+                {!photo?.key && (
+                  <span className="relative text-[12.5px] text-muted-foreground">
+                    {photo?.label ?? "Sem fotos"}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {total > 0 && (
+            <span
+              aria-live="polite"
+              className="pointer-events-none absolute right-4 bottom-3 inline-flex h-7 items-center gap-1.5 rounded-md bg-zinc-950/65 px-2.5 text-xs font-medium tabular-nums text-zinc-50 backdrop-blur-xs"
             >
-              <PhotoFill photo={photo} alt={photo?.label ?? title} iconClassName="size-16" />
-              {!photo?.key && (
-                <span className="relative text-[12.5px] text-muted-foreground">
-                  {photo?.label ?? "Sem fotos"}
-                </span>
-              )}
-            </button>
-          ))}
+              <Expand className="size-3.5 stroke-[1.75]" aria-hidden="true" />
+              {index + 1}/{total}
+            </span>
+          )}
         </div>
 
         {total > 1 && (
@@ -148,9 +195,10 @@ export function Gallery({ photos, title }: { photos: Photo[]; title: string }) {
         photos={photos}
         index={index}
         title={title}
+        kind={kind}
         open={lightbox}
         onOpenChange={setLightbox}
-        onStep={step}
+        onIndexChange={setIndex}
       />
     </>
   );

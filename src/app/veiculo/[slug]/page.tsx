@@ -100,7 +100,11 @@ export default async function VehiclePage({
 
         <div className="grid items-start gap-9 lg:grid-cols-[minmax(0,1.65fr)_minmax(300px,1fr)]">
           <div className="flex min-w-0 flex-col gap-8">
-            <Gallery photos={vehicle.photos} title={fullTitle(vehicle)} />
+            <Gallery
+              photos={vehicle.photos}
+              kind={vehicle.kind}
+              title={fullTitle(vehicle)}
+            />
             <MobileHeadline vehicle={vehicle} />
 
             <div className="h-px bg-border" />

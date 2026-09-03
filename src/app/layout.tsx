@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: {
-    default: `${site.name} · Carros seminovos`,
+    default: `${site.name} · Veículos seminovos`,
     template: `%s · ${site.name}`,
   },
   description: `Catálogo de veículos seminovos da ${site.name}. ${site.tagline}`,

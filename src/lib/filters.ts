@@ -1,3 +1,5 @@
+import { FUELS, KIND_PLURAL, TRANSMISSIONS, VEHICLE_KINDS } from "./vehicle-kind";
+import type { VehicleKind } from "./vehicle-kind";
 import type { Vehicle } from "./vehicle";
 
 export type SortKey =
@@ -9,24 +11,31 @@ export type SortKey =
 
 export type TabKey = "todos" | "disponiveis" | "reservados" | "vendidos";
 
+/** "" = todos os tipos. */
+export type KindFilter = "" | VehicleKind;
+
 export type Filters = {
   q: string;
+  kind: KindFilter;
   brand: string;
   price: string;
   year: string;
   transmission: string;
   fuel: string;
+  tag: string;
   sort: SortKey;
   tab: TabKey;
 };
 
 export const EMPTY_FILTERS: Filters = {
   q: "",
+  kind: "",
   brand: "",
   price: "",
   year: "",
   transmission: "",
   fuel: "",
+  tag: "",
   sort: "relevancia",
   tab: "todos",
 };
@@ -38,18 +47,42 @@ export const EMPTY_FILTERS: Filters = {
  */
 const PARAM: Record<keyof Filters, string> = {
   q: "busca",
+  kind: "tipo",
   brand: "marca",
   price: "preco",
   year: "ano",
   transmission: "cambio",
   fuel: "combustivel",
+  tag: "etiqueta",
   sort: "ordenar",
   tab: "situacao",
 };
 
 export type Option = { value: string; label: string };
 
-export const PRICE_OPTIONS: Option[] = [
+export const KIND_OPTIONS: Option[] = [
+  { value: "", label: "Tipo: todos" },
+  ...VEHICLE_KINDS.map((kind) => ({ value: kind, label: KIND_PLURAL[kind] })),
+];
+
+/**
+ * Faixas de preco. Carro e moto vivem em ordens de grandeza diferentes — as
+ * faixas de carro engoliriam a vitrine de motos inteira numa opcao so — entao
+ * cada tipo tem a sua, e a chave da URL diz de qual se trata.
+ */
+const PRICE_RANGES: Record<string, [number, number]> = {
+  "ate-80": [0, 80_000],
+  "80-120": [80_000, 120_000],
+  "120-160": [120_000, 160_000],
+  "acima-160": [160_000, Number.POSITIVE_INFINITY],
+
+  "ate-10": [0, 10_000],
+  "10-20": [10_000, 20_000],
+  "20-40": [20_000, 40_000],
+  "acima-40": [40_000, Number.POSITIVE_INFINITY],
+};
+
+const CAR_PRICES: Option[] = [
   { value: "", label: "Preço: qualquer" },
   { value: "ate-80", label: "Até R$ 80 mil" },
   { value: "80-120", label: "R$ 80 a 120 mil" },
@@ -57,12 +90,33 @@ export const PRICE_OPTIONS: Option[] = [
   { value: "acima-160", label: "Acima de R$ 160 mil" },
 ];
 
-const PRICE_RANGES: Record<string, [number, number]> = {
-  "ate-80": [0, 80_000],
-  "80-120": [80_000, 120_000],
-  "120-160": [120_000, 160_000],
-  "acima-160": [160_000, Number.POSITIVE_INFINITY],
-};
+const MOTO_PRICES: Option[] = [
+  { value: "", label: "Preço: qualquer" },
+  { value: "ate-10", label: "Até R$ 10 mil" },
+  { value: "10-20", label: "R$ 10 a 20 mil" },
+  { value: "20-40", label: "R$ 20 a 40 mil" },
+  { value: "acima-40", label: "Acima de R$ 40 mil" },
+];
+
+/** As faixas de moto so aparecem depois de filtrar por moto. */
+export const priceOptions = (kind: KindFilter): Option[] =>
+  kind === "moto" ? MOTO_PRICES : CAR_PRICES;
+
+/** Uniao dos dois tipos quando nenhum esta selecionado. */
+const unique = (values: string[]) => Array.from(new Set(values));
+
+const fromKind = (kind: KindFilter, byKind: Record<VehicleKind, string[]>) =>
+  kind ? byKind[kind] : unique(VEHICLE_KINDS.flatMap((k) => byKind[k]));
+
+export const transmissionOptions = (kind: KindFilter): Option[] => [
+  { value: "", label: "Câmbio: todos" },
+  ...fromKind(kind, TRANSMISSIONS).map((v) => ({ value: v, label: v })),
+];
+
+export const fuelOptions = (kind: KindFilter): Option[] => [
+  { value: "", label: "Combustível: todos" },
+  ...fromKind(kind, FUELS).map((v) => ({ value: v, label: v })),
+];
 
 export const YEAR_OPTIONS: Option[] = [
   { value: "", label: "Ano: qualquer" },
@@ -70,19 +124,6 @@ export const YEAR_OPTIONS: Option[] = [
   { value: "2022", label: "De 2022" },
   { value: "2020", label: "De 2020" },
   { value: "2018", label: "De 2018" },
-];
-
-export const TRANSMISSION_OPTIONS: Option[] = [
-  { value: "", label: "Câmbio: todos" },
-  { value: "Automático", label: "Automático" },
-  { value: "CVT", label: "CVT" },
-  { value: "Manual", label: "Manual" },
-];
-
-export const FUEL_OPTIONS: Option[] = [
-  { value: "", label: "Combustível: todos" },
-  { value: "Flex", label: "Flex" },
-  { value: "Diesel", label: "Diesel" },
 ];
 
 export const SORT_OPTIONS: Option[] = [
@@ -124,6 +165,7 @@ export function parseFilters(source: ParamSource): Filters {
   const tabValues = TAB_OPTIONS.map((o) => o.value);
   return {
     q: read(source, PARAM.q).slice(0, 80),
+    kind: oneOf(read(source, PARAM.kind), ["", ...VEHICLE_KINDS] as const, ""),
     brand: read(source, PARAM.brand),
     price: read(source, PARAM.price) in PRICE_RANGES ? read(source, PARAM.price) : "",
     year: YEAR_OPTIONS.some((o) => o.value && o.value === read(source, PARAM.year))
@@ -131,8 +173,29 @@ export function parseFilters(source: ParamSource): Filters {
       : "",
     transmission: read(source, PARAM.transmission),
     fuel: read(source, PARAM.fuel),
+    tag: read(source, PARAM.tag).slice(0, 40),
     sort: oneOf(read(source, PARAM.sort), sortValues, "relevancia"),
     tab: oneOf(read(source, PARAM.tab), tabValues, "todos"),
+  };
+}
+
+/**
+ * Troca o tipo limpando o que deixou de fazer sentido. "Diesel" e a faixa de
+ * R$ 120 a 160 mil nao existem em moto: mantidos, devolveriam zero resultado
+ * e o visitante culparia a vitrine.
+ */
+export function withKind(filters: Filters, kind: KindFilter): Filters {
+  const valid = (options: Option[], value: string) =>
+    options.some((option) => option.value === value);
+
+  return {
+    ...filters,
+    kind,
+    price: valid(priceOptions(kind), filters.price) ? filters.price : "",
+    transmission: valid(transmissionOptions(kind), filters.transmission)
+      ? filters.transmission
+      : "",
+    fuel: valid(fuelOptions(kind), filters.fuel) ? filters.fuel : "",
   };
 }
 
@@ -151,15 +214,25 @@ export function applyFilters(all: Vehicle[], filters: Filters): Vehicle[] {
   const term = filters.q.trim().toLowerCase();
   const range = PRICE_RANGES[filters.price];
   const minYear = filters.year ? Number(filters.year) : 0;
+  const tag = filters.tag.trim().toLowerCase();
 
   const out = all.filter((v) => {
-    if (term && !`${v.brand} ${v.model} ${v.version}`.toLowerCase().includes(term))
+    // A busca varre as etiquetas junto: quem digita "aceito troca" espera
+    // encontrar, mesmo que isso nunca apareca no nome do modelo.
+    if (
+      term &&
+      !`${v.brand} ${v.model} ${v.version} ${v.tags.join(" ")}`
+        .toLowerCase()
+        .includes(term)
+    )
       return false;
+    if (filters.kind && v.kind !== filters.kind) return false;
     if (filters.brand && v.brand !== filters.brand) return false;
     if (range && (v.price < range[0] || v.price >= range[1])) return false;
     if (minYear && v.year < minYear) return false;
     if (filters.transmission && v.transmission !== filters.transmission) return false;
     if (filters.fuel && v.fuel !== filters.fuel) return false;
+    if (tag && !v.tags.some((t) => t.toLowerCase() === tag)) return false;
     if (filters.tab === "disponiveis")
       return v.status !== "vendido" && v.status !== "reservado";
     if (filters.tab === "reservados") return v.status === "reservado";
@@ -177,13 +250,16 @@ export function activeChips(filters: Filters) {
 
   const chips: { key: keyof Filters; label: string }[] = [];
   if (filters.q.trim()) chips.push({ key: "q", label: `“${filters.q.trim()}”` });
+  if (filters.kind)
+    chips.push({ key: "kind", label: label(KIND_OPTIONS, filters.kind) });
   if (filters.brand) chips.push({ key: "brand", label: filters.brand });
   if (filters.price)
-    chips.push({ key: "price", label: label(PRICE_OPTIONS, filters.price) });
+    chips.push({ key: "price", label: label(priceOptions(filters.kind), filters.price) });
   if (filters.year) chips.push({ key: "year", label: `De ${filters.year}` });
   if (filters.transmission)
     chips.push({ key: "transmission", label: filters.transmission });
   if (filters.fuel) chips.push({ key: "fuel", label: filters.fuel });
+  if (filters.tag.trim()) chips.push({ key: "tag", label: filters.tag.trim() });
   return chips;
 }
 

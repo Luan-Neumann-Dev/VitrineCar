@@ -1,6 +1,15 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Copy, Eye, ImageIcon, Trash2 } from "lucide-react";
+import {
+  Car,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Eye,
+  ImageIcon,
+  Motorbike,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -13,7 +22,8 @@ import {
 import { VEHICLE_STATUSES, type VehicleStatus } from "@/db/schema";
 import { brl, km, plural } from "@/lib/format";
 import { photoUrl } from "@/lib/photos";
-import { STATUS_LABELS, type Vehicle } from "@/lib/vehicle";
+import { cc, STATUS_LABELS, type Vehicle } from "@/lib/vehicle";
+import { KIND_LABELS } from "@/lib/vehicle-kind";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -42,12 +52,15 @@ export function AdRow({
   onDelete,
 }: Props) {
   const cover = vehicle.photos[0] ? photoUrl(vehicle.photos[0], "thumb") : null;
+  const KindIcon = vehicle.kind === "moto" ? Motorbike : Car;
   const meta = [
     `${vehicle.yearFab}/${vehicle.year}`,
     km(vehicle.mileage),
-    vehicle.transmission,
+    vehicle.kind === "moto" ? cc(vehicle.displacement) : vehicle.transmission,
     vehicle.fuel,
-  ].join(" · ");
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="flex flex-wrap items-center gap-3.5 p-3.5">
@@ -88,7 +101,11 @@ export function AdRow({
       </div>
 
       <div className="flex min-w-0 flex-[1_1_200px] flex-col gap-0.5">
-        <strong className="text-[14.5px] font-semibold tracking-tight">
+        <strong className="flex items-center gap-1.5 text-[14.5px] font-semibold tracking-tight">
+          <KindIcon
+            className="size-4 shrink-0 stroke-[1.75] text-muted-foreground"
+            aria-label={KIND_LABELS[vehicle.kind]}
+          />
           {`${vehicle.brand} ${vehicle.model}`.trim() || "Anúncio sem título"}
         </strong>
         <span className="truncate text-[13px] text-muted-foreground">

@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import type { VehicleStatus } from "@/db/schema";
+import { VEHICLE_KINDS, type VehicleStatus } from "@/db/schema";
 import { blankDraft, draftFromVehicle } from "@/lib/draft";
 import { plural } from "@/lib/format";
 import { fullTitle, type Vehicle } from "@/lib/vehicle";
@@ -103,17 +103,25 @@ export function AdminPanel({ vehicles }: { vehicles: Vehicle[] }) {
               {plural(vehicles.length, "anúncio", "anúncios")} · {summary}
             </p>
           </div>
-          <Button
-            disabled={pending || editing === "new"}
-            onClick={() => {
-              setEditing("new");
-              setDraft(blankDraft());
-            }}
-            className="h-[38px] rounded-md"
-          >
-            <Plus className="size-[15px] stroke-2" />
-            Novo anúncio
-          </Button>
+          {/* Dois botões em vez de um: o tipo é a primeira decisão do anúncio
+              e define a ficha inteira, então começa já escolhido. */}
+          <div className="flex items-center gap-2">
+            {VEHICLE_KINDS.map((kind, index) => (
+              <Button
+                key={kind}
+                variant={index === 0 ? "default" : "outline"}
+                disabled={pending || editing === "new"}
+                onClick={() => {
+                  setEditing("new");
+                  setDraft(blankDraft(kind));
+                }}
+                className="h-[38px] rounded-md"
+              >
+                <Plus className="size-[15px] stroke-2" />
+                {kind === "moto" ? "Nova moto" : "Novo carro"}
+              </Button>
+            ))}
+          </div>
         </div>
 
         {editing === "new" && editor}

@@ -6,7 +6,7 @@ import { parseFilters } from "@/lib/filters";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: `${site.name} · Carros seminovos`,
+  title: `${site.name} · Veículos seminovos`,
   description: `Veja os veículos seminovos disponíveis na ${site.name}. Fotos, ficha técnica completa e contato direto pelo WhatsApp.`,
   alternates: { canonical: "/" },
 };

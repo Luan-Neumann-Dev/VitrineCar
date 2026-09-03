@@ -13,7 +13,9 @@ import {
   TAB_OPTIONS,
   applyFilters,
   filtersToQuery,
+  withKind,
   type Filters,
+  type KindFilter,
   type TabKey,
 } from "@/lib/filters";
 
@@ -49,11 +51,24 @@ export function CatalogView({ vehicles, initialFilters }: Props) {
     );
   }, [filters]);
 
+  // As marcas seguem o tipo escolhido: com "Motos" ativo, não faz sentido
+  // oferecer Chevrolet na lista de marcas.
   const brands = useMemo(
     () =>
-      Array.from(new Set(vehicles.map((v) => v.brand)))
+      Array.from(
+        new Set(
+          vehicles
+            .filter((v) => !filters.kind || v.kind === filters.kind)
+            .map((v) => v.brand),
+        ),
+      )
         .filter(Boolean)
         .sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [vehicles, filters.kind],
+  );
+
+  const showKind = useMemo(
+    () => new Set(vehicles.map((v) => v.kind)).size > 1,
     [vehicles],
   );
 
@@ -65,14 +80,35 @@ export function CatalogView({ vehicles, initialFilters }: Props) {
   const set = <K extends keyof Filters>(key: K, value: Filters[K]) =>
     setFilters((current) => ({ ...current, [key]: value }));
 
+  /**
+   * Trocar o tipo limpa os filtros que só existiam no tipo anterior — inclusive
+   * a marca, que vem dos anúncios e não de uma lista fixa.
+   */
+  const setKind = (kind: KindFilter) =>
+    setFilters((current) => {
+      const next = withKind(current, kind);
+      const brandExists = vehicles.some(
+        (v) => (!kind || v.kind === kind) && v.brand === next.brand,
+      );
+      return brandExists ? next : { ...next, brand: "" };
+    });
+
   return (
     <>
-      <FilterBar filters={filters} brands={brands} onChange={set} />
+      <FilterBar
+        filters={filters}
+        brands={brands}
+        showKind={showKind}
+        onChange={set}
+        onKindChange={setKind}
+      />
 
       <main className="mx-auto w-full max-w-[1200px] px-5 pt-5.5 pb-18">
         <FilterChips
           filters={filters}
-          onRemove={(key) => set(key, EMPTY_FILTERS[key])}
+          onRemove={(key) =>
+            key === "kind" ? setKind("") : set(key, EMPTY_FILTERS[key])
+          }
           onClearAll={() => setFilters(EMPTY_FILTERS)}
         />
 

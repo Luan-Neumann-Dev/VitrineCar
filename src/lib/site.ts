@@ -7,7 +7,7 @@ export const site = {
   name: process.env.NEXT_PUBLIC_STORE_NAME || "Almeida Veículos",
   tagline:
     process.env.NEXT_PUBLIC_STORE_TAGLINE ||
-    "Revenda de carros seminovos · Campinas, SP",
+    "Revenda de veículos seminovos · Campinas, SP",
   /** Linha livre no rodapé: horário, forma de atendimento, o que fizer sentido. */
   note: process.env.NEXT_PUBLIC_STORE_NOTE || "Atendimento por WhatsApp",
   whatsapp: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5519998877665",

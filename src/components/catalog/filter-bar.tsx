@@ -7,25 +7,46 @@ import { FilterSelect } from "@/components/catalog/filter-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  FUEL_OPTIONS,
-  PRICE_OPTIONS,
+  KIND_OPTIONS,
   SORT_OPTIONS,
-  TRANSMISSION_OPTIONS,
   YEAR_OPTIONS,
+  fuelOptions,
+  priceOptions,
+  transmissionOptions,
   type Filters,
+  type KindFilter,
 } from "@/lib/filters";
 import { cn } from "@/lib/utils";
 
 type Props = {
   filters: Filters;
   brands: string[];
+  /** Só vale oferecer o filtro de tipo quando a vitrine tem carro e moto. */
+  showKind: boolean;
   onChange: <K extends keyof Filters>(key: K, value: Filters[K]) => void;
+  onKindChange: (kind: KindFilter) => void;
 };
 
-export function FilterBar({ filters, brands, onChange }: Props) {
+export function FilterBar({
+  filters,
+  brands,
+  showKind,
+  onChange,
+  onKindChange,
+}: Props) {
   const [open, setOpen] = useState(false);
 
   const selects = [
+    ...(showKind
+      ? [
+          {
+            label: "Tipo",
+            value: filters.kind,
+            onValueChange: (v: string) => onKindChange(v as KindFilter),
+            options: KIND_OPTIONS,
+          },
+        ]
+      : []),
     {
       label: "Marca",
       value: filters.brand,
@@ -39,7 +60,7 @@ export function FilterBar({ filters, brands, onChange }: Props) {
       label: "Faixa de preço",
       value: filters.price,
       onValueChange: (v: string) => onChange("price", v),
-      options: PRICE_OPTIONS,
+      options: priceOptions(filters.kind),
     },
     {
       label: "Ano",
@@ -51,13 +72,13 @@ export function FilterBar({ filters, brands, onChange }: Props) {
       label: "Câmbio",
       value: filters.transmission,
       onValueChange: (v: string) => onChange("transmission", v),
-      options: TRANSMISSION_OPTIONS,
+      options: transmissionOptions(filters.kind),
     },
     {
       label: "Combustível",
       value: filters.fuel,
       onValueChange: (v: string) => onChange("fuel", v),
-      options: FUEL_OPTIONS,
+      options: fuelOptions(filters.kind),
     },
     {
       label: "Ordenar",
@@ -80,7 +101,7 @@ export function FilterBar({ filters, brands, onChange }: Props) {
               type="search"
               value={filters.q}
               onChange={(e) => onChange("q", e.target.value)}
-              placeholder="Buscar por marca, modelo ou versão"
+              placeholder="Buscar por marca, modelo ou etiqueta"
               aria-label="Buscar veículos"
               className="h-10 rounded-md pl-8.5"
             />

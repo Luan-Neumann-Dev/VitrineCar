@@ -28,12 +28,14 @@ const lines: string[] = [
 SEED_VEHICLES.forEach((v, index) => {
   const id = index + 1;
   lines.push(
-    "INSERT INTO vehicles (id, slug, brand, model, version, year_fab, year, " +
+    "INSERT INTO vehicles (id, slug, kind, brand, model, version, year_fab, year, " +
       "price, mileage, transmission, fuel, color, doors, engine, plate_end, " +
-      "ipva_paid, one_owner, inspection, status, features, description, position) VALUES (" +
+      "displacement, gears, start_type, brakes, cooling, " +
+      "ipva_paid, one_owner, inspection, status, features, tags, description, position) VALUES (" +
       [
         id,
         q(v.slug),
+        q(v.kind ?? "carro"),
         q(v.brand),
         q(v.model),
         q(v.version),
@@ -47,11 +49,17 @@ SEED_VEHICLES.forEach((v, index) => {
         v.doors,
         q(v.engine),
         q(v.plateEnd),
+        v.displacement ?? 0,
+        v.gears ?? 0,
+        q(v.startType ?? ""),
+        q(v.brakes ?? ""),
+        q(v.cooling ?? ""),
         b(v.ipvaPaid),
         b(v.oneOwner),
         b(v.inspection),
         q(v.status),
         q(JSON.stringify(v.features)),
+        q(JSON.stringify(v.tags ?? [])),
         q(v.description),
         index,
       ].join(", ") +

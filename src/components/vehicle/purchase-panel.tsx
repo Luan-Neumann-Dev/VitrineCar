@@ -1,6 +1,7 @@
 import { WhatsAppIcon } from "@/components/icons";
 import { StatusBadge } from "@/components/status-badge";
 import { ShareButton } from "@/components/vehicle/share-button";
+import { TagList } from "@/components/vehicle/spec-sheet";
 import { Button } from "@/components/ui/button";
 import { brl } from "@/lib/format";
 import {
@@ -47,10 +48,12 @@ export function PurchasePanel({ vehicle }: { vehicle: Vehicle }) {
         <ShareButton title={fullTitle(vehicle)} />
       </div>
 
-      <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-        Atendimento direto com o proprietário. Aceito troca e financiamento com
-        entrada.
-      </p>
+      {/*
+        O que a loja aceita ("troca", "financio") é etiqueta do anúncio, não
+        texto fixo: as condições mudam de carro para carro, e uma promessa
+        impressa em todos eles é uma que o vendedor não escolheu fazer.
+      */}
+      <TagList tags={vehicle.tags} />
     </aside>
   );
 }
@@ -69,6 +72,7 @@ export function MobileHeadline({ vehicle }: { vehicle: Vehicle }) {
         <p className="text-sm text-muted-foreground">{vehicle.version}</p>
       </div>
       <p className="text-3xl font-semibold tracking-tight">{brl(vehicle.price)}</p>
+      <TagList tags={vehicle.tags} />
       <ShareButton title={fullTitle(vehicle)} className="h-10.5 self-start" />
     </div>
   );

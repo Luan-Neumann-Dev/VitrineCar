@@ -1,7 +1,9 @@
-import type { VehicleStatus } from "./schema";
+import type { VehicleKind, VehicleStatus } from "./schema";
 
 export type SeedVehicle = {
   slug: string;
+  /** Omitido = carro, que e a maioria dos exemplos. */
+  kind?: VehicleKind;
   brand: string;
   model: string;
   version: string;
@@ -15,11 +17,18 @@ export type SeedVehicle = {
   doors: number;
   engine: string;
   plateEnd: string;
+  /** Moto. Ficam zerados/vazios nos carros. */
+  displacement?: number;
+  gears?: number;
+  startType?: string;
+  brakes?: string;
+  cooling?: string;
   ipvaPaid: boolean;
   oneOwner: boolean;
   inspection: boolean;
   status: VehicleStatus;
   features: string[];
+  tags?: string[];
   description: string;
   /** Apenas as legendas: os arquivos entram no R2 pelo painel (fase 2). */
   photos: string[];
@@ -516,5 +525,79 @@ export const SEED_VEHICLES: SeedVehicle[] = [
       "Rodas",
       "Porta-malas",
     ],
+  },
+  {
+    slug: "honda-cg-160-titan-2023",
+    kind: "moto",
+    brand: "Honda",
+    model: "CG 160",
+    version: "Titan Start",
+    yearFab: 2022,
+    year: 2023,
+    price: 14900,
+    mileage: 12400,
+    transmission: "Manual",
+    fuel: "Flex",
+    color: "Vermelha",
+    doors: 0,
+    engine: "",
+    plateEnd: "3",
+    displacement: 162,
+    gears: 5,
+    startType: "Elétrica e pedal",
+    brakes: "CBS (freio combinado)",
+    cooling: "Ar",
+    ipvaPaid: true,
+    oneOwner: true,
+    inspection: false,
+    status: "disponivel",
+    features: [
+      "Partida elétrica",
+      "Injeção eletrônica",
+      "Alarme",
+      "Baú / bagageiro",
+      "Protetor de motor",
+    ],
+    tags: ["Pra trabalhar", "Aceito troca", "Revisada"],
+    description:
+      "CG 160 Titan de dono único, sempre revisada na concessionária. Pneus e relação trocados há 2 mil km, corrente regulada. Documento pago e pronta para transferir.",
+    photos: ["Lateral direita", "Frente", "Painel", "Motor", "Traseira"],
+  },
+  {
+    slug: "yamaha-fazer-250-2021",
+    kind: "moto",
+    brand: "Yamaha",
+    model: "Fazer 250",
+    version: "FZ25 ABS",
+    yearFab: 2021,
+    year: 2021,
+    price: 19800,
+    mileage: 21300,
+    transmission: "Manual",
+    fuel: "Gasolina",
+    color: "Azul",
+    doors: 0,
+    engine: "",
+    plateEnd: "8",
+    displacement: 250,
+    gears: 5,
+    startType: "Elétrica",
+    brakes: "ABS nas duas rodas",
+    cooling: "Ar e óleo",
+    ipvaPaid: true,
+    oneOwner: false,
+    inspection: true,
+    status: "novo",
+    features: [
+      "Painel digital",
+      "Farol de LED",
+      "Injeção eletrônica",
+      "Rodas de liga",
+      "Suporte de celular",
+    ],
+    tags: ["Baixa quilometragem", "Pneus novos", "Financio com entrada"],
+    description:
+      "Fazer 250 com ABS nas duas rodas e painel digital. Nunca caiu, sem riscos na carenagem. Revisões feitas a cada 3 mil km, com nota. Aceito troca por moto de menor cilindrada.",
+    photos: ["Lateral esquerda", "Frente", "Painel", "Escapamento", "Traseira", "Banco"],
   },
 ];
