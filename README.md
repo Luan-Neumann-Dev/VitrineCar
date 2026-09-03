@@ -11,9 +11,8 @@
 
 <div align="center">
 
-<!-- Add a screenshot at docs/preview.png, then uncomment the line below:
-![Vitrine Carros](docs/preview.png)
--->
+![Vitrine Carros](https://github.com/user-attachments/assets/c0714b4f-49bc-4987-897f-cb729c2df1cf)
+![Vitrine Carros](https://github.com/user-attachments/assets/66a35f47-c432-49a7-a102-9530e077e744)
 
 **[🚀 Live Demo](https://vitrine-carros.lnneumann.workers.dev/) · [📖 Setup Guide](STARTUP.md) · [🐛 Report a Bug](https://github.com/Luan-Neumann-Dev/VitrineCar/issues)**
 
