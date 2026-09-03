@@ -23,6 +23,19 @@
     }
   ],
 
+  // Freio de mao por IP, usado pelo src/middleware.ts. O contador vive na memoria
+  // do datacenter: nao gasta operacao de D1 nem precisa de limpeza. Os
+  // namespace_id sao numeros livres, so precisam ser unicos dentro do Worker.
+  // Periodo aceita 10 ou 60 segundos.
+  "ratelimits": [
+    // Vitrine e paginas de veiculo. Uma navegacao normal fica bem abaixo disso.
+    { "name": "RL_PAGES", "namespace_id": "1001", "simple": { "limit": 40, "period": 10 } },
+    // Fotos servidas pelo Worker: uma pagina abre varias de uma vez.
+    { "name": "RL_PHOTOS", "namespace_id": "1002", "simple": { "limit": 300, "period": 60 } },
+    // Painel e upload. Folgado para enviar um album, apertado para forca bruta.
+    { "name": "RL_ADMIN", "namespace_id": "1003", "simple": { "limit": 60, "period": 60 } }
+  ],
+
   // Fotos dos anuncios. Usado a partir da fase 2 (upload no painel).
   "r2_buckets": [
     {
