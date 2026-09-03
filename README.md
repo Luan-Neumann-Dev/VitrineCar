@@ -1,412 +1,600 @@
-# Vitrine de Veículos
+# Vitrine Carros
 
-Catálogo de carros seminovos com contato direto por WhatsApp, e um painel em
-`/admin` onde o vendedor cadastra os anúncios e sobe as fotos.
+> A used-car dealership catalog that runs entirely on Cloudflare's free tier — server-rendered listings, WhatsApp-first contact, and a self-service admin panel where the seller publishes a car in under a minute.
 
-Roda inteiro na Cloudflare (Workers + D1 + R2), dentro do plano gratuito.
+![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![Cloudflare](https://img.shields.io/badge/Cloudflare-Workers%20%C2%B7%20D1%20%C2%B7%20R2-F38020?logo=cloudflare&logoColor=white)
+![Drizzle ORM](https://img.shields.io/badge/Drizzle-ORM-C5F74F?logo=drizzle&logoColor=black)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green)
+
+<div align="center">
+
+<!-- Add a screenshot at docs/preview.png, then uncomment the line below:
+![Vitrine Carros](docs/preview.png)
+-->
+
+**[🚀 Live Demo](https://vitrine-carros.lnneumann.workers.dev/) · [📖 Setup Guide](STARTUP.md) · [🐛 Report a Bug](https://github.com/Luan-Neumann-Dev/VitrineCar/issues)**
+
+</div>
 
 ---
 
-# Colocar no ar — passo a passo
+## 📋 Table of Contents
 
-Se você nunca mexeu na Cloudflare, siga na ordem. São uns 20 minutos.
+- [About The Project](#-about-the-project)
+- [Features](#-features)
+- [Tech Stack](#️-tech-stack)
+- [Getting Started](#-getting-started)
+- [Project Structure](#-project-structure)
+- [Architecture](#️-architecture)
+- [Database Schema](#️-database-schema)
+- [Challenges & Solutions](#-challenges--solutions)
+- [Security](#-security)
+- [Performance & Cost](#-performance--cost)
+- [What I Learned](#-what-i-learned)
+- [Roadmap](#️-roadmap)
+- [License](#-license)
+- [Contact](#-contact)
 
-## Antes de começar
+## 🎯 About The Project
 
-Você precisa de:
+Small used-car dealerships in Brazil sell through WhatsApp and Instagram. The car
+lives in a photo album, the price lives in a caption, and nothing is indexable —
+so a buyer searching Google for *"Civic 2019 Ijuí"* never finds the seller who has
+one on the lot.
 
-- **Conta na Cloudflare** — grátis, em [dash.cloudflare.com/sign-up](https://dash.cloudflare.com/sign-up). Não pede cartão.
-- **Node.js 20 ou superior** e **pnpm** instalados.
-- **Um domínio** (ex.: `almeidaveiculos.com.br`), se quiser endereço próprio. É opcional: dá para começar num endereço gratuito da Cloudflare e ligar o domínio depois.
+**Vitrine Carros** is the missing storefront. Every listing is a real, crawlable
+URL (`/veiculo/honda-civic-2019`) with structured data attached, so the car shows
+up in search results *with its price and year*, not just as a blue link. The
+contact button is still WhatsApp — that is where the deal actually closes — but it
+opens a conversation already carrying the exact vehicle.
 
-Instale as dependências:
+The whole thing is operated by the seller, not by a developer. A dealer with no
+technical background logs into `/admin`, drags photos off their phone, and the
+listing is live. There is no CMS to license and no server to babysit.
+
+The hard constraint that shaped every technical decision: **it has to fit inside
+Cloudflare's free tier and stay there**, even when a scraper finds it at 3 a.m.
+
+### Why I Built This
+
+I wanted to build a complete product on an edge runtime rather than a conventional
+Node server — no long-lived process, no filesystem, 10 ms of CPU per request — and
+find out which familiar patterns survive that. Several did not: the `next/image`
+optimizer, Node middleware, and signed-URL uploads all had to be replaced with
+something that works inside a Worker. Those replacements are the most interesting
+code in the repository, and they are documented in
+[Challenges & Solutions](#-challenges--solutions).
+
+## ✨ Features
+
+### Core Functionality
+
+- 🚗 **Cars and motorcycles from one schema** — a listing's `kind` drives which spec fields the editor shows, which the spec sheet renders, and which filters exist. A motorcycle has displacement, gears, starter type, brakes and cooling; a car has doors and engine. Diesel is not offered as a motorcycle fuel, and a sunroof is not offered as a motorcycle option.
+- 🔎 **Instant faceted filtering** — brand, price band, year, transmission, fuel, type, free-text search and sorting, all applied in the browser with zero requests per click, while the URL stays shareable and server-renderable.
+- 🏷️ **Free-form seller tags** — up to eight per listing ("Trade-ins welcome", "New tires", "One owner"). They show on the card, join the text search, and each one becomes a clickable filter link.
+- 📸 **Drag-and-drop photo manager** — reorder by dragging thumbnails, the first photo becomes the cover, and deleting removes both stored variants from the bucket.
+- 💬 **WhatsApp-first contact** — every CTA opens a chat pre-filled with the vehicle and its link; the seller's number is a single environment variable.
+- 🔐 **Password-protected admin panel** — JWT session in an `HttpOnly` cookie. No user table, no sign-up flow: one seller, one password.
+
+### User Experience
+
+- Server-rendered listings, so the first paint already contains the cars — no spinner, no layout shift.
+- Status is a first-class concept: *new*, *available*, *reserved*, *sold*, each with its own badge and filter tab.
+- Lightbox gallery with keyboard navigation, and a sticky mobile CTA that follows the buyer down the page.
+- Dark mode via `next-themes`, and a share button using the Web Share API where available.
+
+### Technical Features
+
+- 🛡️ **Edge rate limiting** that rejects floods *before* any D1 query, R2 read, or render happens.
+- 🖼️ **Client-side image pipeline** — photos are resized and converted to WebP in the browser, in two variants, before upload. A 3.8 MB phone photo leaves the device as ~13 KB + ~4 KB.
+- 🔎 **`schema.org` structured data** per listing — `Car` or `Motorcycle`, with offer, price and mileage — plus a generated `sitemap.xml` and `robots.txt`.
+- 🚧 **A build-time guard that fails the deploy** if a secret ever appears in a `.env` file.
+
+## 🛠️ Tech Stack
+
+**Application**
+
+- **Next.js 16** (App Router) — server components for the catalog, server actions for every write
+- **React 19** + **TypeScript 5** — strict mode throughout
+- **Tailwind CSS 4** + **shadcn/ui** (Radix primitives) — design system, Geist type scale, zinc palette
+- **next-themes**, **sonner**, **lucide-react** — theming, toasts, icons
+
+**Backend & Infrastructure**
+
+- **Cloudflare Workers** — hosting and runtime, via [`@opennextjs/cloudflare`](https://github.com/opennextjs/opennextjs-cloudflare)
+- **Cloudflare D1** (SQLite at the edge) — catalog storage
+- **Cloudflare R2** — photo storage, reached through a Worker binding (no credentials in the app)
+- **Drizzle ORM** + **drizzle-kit** — typed queries and versioned migrations
+- **jose** — HS256 JWT signing and verification in a Web Crypto runtime
+- **Cloudflare rate limiting bindings** — per-IP counters living in datacenter memory
+
+**Tooling**
+
+- **pnpm** (with `node-linker=hoisted`), **Wrangler**, **ESLint**, **tsx**
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- **Node.js** >= 20
+- **pnpm** >= 10
+- A free **Cloudflare account** (no credit card required to start)
+
+### Quick Start (local)
 
 ```bash
+# 1. Clone the repository
+git clone https://github.com/Luan-Neumann-Dev/VitrineCar.git
+cd VitrineCar
+
+# 2. Install dependencies
 pnpm install
-```
 
-## 1. Conectar sua conta da Cloudflare
+# 3. Create .dev.vars with the local admin secrets (never a .env file — see below)
+printf 'ADMIN_PASSWORD="local-dev-password"\nADMIN_SESSION_SECRET="local-dev-secret"\n' > .dev.vars
 
-Isso abre o navegador para você autorizar:
+# 4. Generate the Cloudflare binding types
+pnpm cf:typegen
 
-```bash
-npx wrangler login
-```
-
-## 2. Criar o banco de dados
-
-```bash
-pnpm cf:db:create
-```
-
-O comando devolve um bloco parecido com este:
-
-```
-[[d1_databases]]
-binding = "DB"
-database_name = "vitrine-carros"
-database_id = "a1b2c3d4-5678-90ab-cdef-1234567890ab"
-```
-
-**Copie o `database_id`** e cole no arquivo [wrangler.jsonc](wrangler.jsonc), no
-lugar de `PREENCHER_APOS_wrangler_d1_create`. Sem isso, nada funciona.
-
-## 3. Criar o bucket das fotos
-
-```bash
-pnpm cf:r2:create
-```
-
-> Se der erro pedindo para ativar o R2, entre em
-> [dash.cloudflare.com](https://dash.cloudflare.com) → **R2** e clique em ativar.
-> É gratuito, mas a Cloudflare pede um cartão só para liberar o serviço — ele não
-> é cobrado dentro do limite grátis.
-
-## 4. Criar as tabelas
-
-```bash
-pnpm db:migrate:remote
-```
-
-## 5. Definir a senha do painel
-
-São dois segredos. Eles **não** ficam em arquivo nenhum — vão direto para a
-Cloudflare.
-
-A senha que você vai digitar em `/admin`. Escolha uma boa, de 16 caracteres ou
-mais — essa página fica aberta na internet:
-
-```bash
-npx wrangler secret put ADMIN_PASSWORD
-```
-
-A chave que assina o cookie de quem está logado. Não é para você decorar, é para
-o servidor usar:
-
-```bash
-npx wrangler secret put ADMIN_SESSION_SECRET
-```
-
-Para essa segunda, gere um valor aleatório e cole quando ele pedir:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
-```
-
-## 6. Primeiro deploy
-
-```bash
-pnpm cf:deploy
-```
-
-No final ele mostra o endereço, algo como
-`https://vitrine-carros.SEU-NOME.workers.dev`. **Abra e confira que o site
-carrega** — ainda sem anúncios, e com os dados de exemplo da loja.
-
-## 7. Apontar o seu domínio
-
-Pule este passo se for usar o endereço `.workers.dev` por enquanto.
-
-Para usar domínio próprio, ele precisa estar **dentro da sua conta Cloudflare**:
-
-1. No painel da Cloudflare, **Add a site**, digite seu domínio e escolha o plano Free.
-2. A Cloudflare mostra dois **nameservers**. Entre no site onde você comprou o domínio (Registro.br, GoDaddy, etc.) e troque os nameservers por esses dois.
-3. Espere a Cloudflare confirmar (de minutos a algumas horas).
-4. Vá em **Workers & Pages** → `vitrine-carros` → **Settings** → **Domains & Routes** → **Add** → **Custom domain**, e informe seu domínio.
-
-## 8. Colocar os dados reais da loja
-
-Os dados ficam em dois arquivos, os dois versionados:
-
-- **[.env](.env)** — o que vale em qualquer ambiente: nome, cidade, telefone.
-- **[.env.production](.env.production)** — só o que muda em produção: o endereço
-  do site e o domínio das fotos.
-
-Ajuste o `NEXT_PUBLIC_SITE_URL` no `.env.production` para o endereço que o passo
-6 imprimiu (ou o seu domínio, se fez o passo 7):
-
-```
-NEXT_PUBLIC_SITE_URL="https://vitrine-carros.SEU-NOME.workers.dev"
-```
-
-Dois cuidados:
-
-- **`NEXT_PUBLIC_WHATSAPP_NUMBER`** vai com código do país e só números:
-  `55` + DDD + telefone. Sem espaço, traço ou parênteses.
-- **`NEXT_PUBLIC_SITE_URL`** vai com `https://` e **sem barra no fim**. É ele que
-  entra no link que o Google indexa e na prévia que aparece quando alguém manda o
-  anúncio no WhatsApp.
-
-Publique de novo para os valores entrarem:
-
-```bash
-pnpm cf:deploy
-```
-
-> Esses valores são lidos **na hora de publicar**, não enquanto o site roda. Toda
-> vez que mudar o telefone ou o nome da loja, precisa rodar `pnpm cf:deploy` de
-> novo.
-
-### ⚠ Nunca coloque senha em arquivo `.env`
-
-Arquivos `.env` são compilados **para dentro** do bundle que vai ao ar. Pior: o
-Next carrega o `.env.local` também no build de produção, e com precedência
-**maior** que o `.env.production` — então um `ADMIN_PASSWORD` deixado ali para
-desenvolvimento é publicado junto com o site.
-
-A regra: arquivos `.env` só podem ter `NEXT_PUBLIC_*`. Segredo vai por
-`wrangler secret put` (produção) e `.dev.vars` (local), que o build nunca lê.
-
-Isso é verificado automaticamente antes de todo build — o `pnpm cf:deploy` roda
-[scripts/check-env.ts](scripts/check-env.ts) e falha se achar qualquer variável
-que não seja `NEXT_PUBLIC_*` nesses arquivos. Para checar sozinho:
-
-```bash
-pnpm check:env
-```
-
-## 9. Entrar no painel e cadastrar os carros
-
-Abra `https://seu-site/admin`, entre com a senha do passo 5 e clique em **Novo
-anúncio**.
-
-O mínimo para publicar é **marca e modelo**. As fotos você arrasta para a área
-pontilhada — elas são reduzidas no seu próprio navegador antes de subir, então
-pode mandar as fotos originais do celular sem se preocupar com tamanho. A
-primeira foto vira a capa; arraste as miniaturas para mudar a ordem.
-
-> **Quer ver o site cheio antes de cadastrar os seus?** `pnpm db:seed:remote`
-> coloca 12 carros de demonstração. **Cuidado:** esse comando apaga tudo que
-> estiver lá. Use só antes de cadastrar os anúncios de verdade.
-
-## 10. Domínio próprio para as fotos (opcional, recomendado depois)
-
-Sem isso o site já funciona: as fotos são servidas pela aplicação. Mas colocá-las
-num domínio próprio faz elas virem direto do CDN, o que é mais rápido e não gasta
-requisição do Worker.
-
-1. Painel da Cloudflare → **R2** → bucket `vitrine-carros-fotos` → **Settings** → **Public access** → **Connect Custom Domain**.
-2. Use um subdomínio, por exemplo `fotos.almeidaveiculos.com.br`.
-3. Coloque esse endereço no `.env.production`:
-
-```
-NEXT_PUBLIC_PHOTOS_BASE_URL="https://fotos.almeidaveiculos.com.br"
-```
-
-4. Publique de novo com `pnpm cf:deploy`.
-
-As fotos que já estavam lá continuam funcionando — muda só por onde elas são
-entregues.
-
----
-
-# Depois que estiver no ar
-
-## Publicar uma mudança no código
-
-```bash
-pnpm cf:deploy
-```
-
-## Trocar a senha do painel
-
-```bash
-npx wrangler secret put ADMIN_PASSWORD
-```
-
-Vale na hora, sem republicar. Se desconfiar que alguém entrou, troque também o
-`ADMIN_SESSION_SECRET` — isso derruba **todas** as sessões abertas.
-
-## Aparecer no Google
-
-Em [search.google.com/search-console](https://search.google.com/search-console),
-cadastre seu domínio e envie o sitemap: `https://seu-site/sitemap.xml`.
-
-Cada anúncio já publica os dados estruturados que fazem o carro aparecer na busca
-**com preço e ano**, não só como um link.
-
-## Backup do catálogo
-
-```bash
-npx wrangler d1 export vitrine-carros --remote --output=backup.sql
-```
-
-Vale rodar de vez em quando. O plano grátis não tem restauração automática.
-
----
-
-# Custos
-
-| Serviço | Limite gratuito | O que esse site usa |
-| --- | --- | --- |
-| Workers | 100 mil requisições/dia | Bem abaixo disso |
-| D1 (banco) | 5 GB, 5 milhões de leituras/dia | Alguns KB |
-| R2 (fotos) | 10 GB, download ilimitado | ~20 KB por foto |
-
-Com 10 anúncios você não encosta em nenhum limite. O único custo real é o
-domínio, uns R$ 40 por ano num `.com.br`.
-
-**Um ponto para observar:** o plano gratuito do Workers dá **10 ms de CPU por
-requisição**. Essas páginas costumam caber, mas é o limite mais apertado da
-montagem. A observabilidade já está ligada — depois de publicar, olhe o *CPU
-time* no painel da Cloudflare em **Workers & Pages** → `vitrine-carros`. Se
-estourar com frequência, o plano pago são US$ 5/mês e sobe o limite para 30 s.
-
----
-
-# Problemas comuns
-
-**"Erro ao publicar: database_id inválido"**
-Você pulou o passo 2. O `database_id` em `wrangler.jsonc` ainda está com o texto
-`PREENCHER_APOS_wrangler_d1_create`.
-
-**O site abre mas não aparece anúncio nenhum**
-Faltou `pnpm db:migrate:remote` (passo 4), ou você ainda não cadastrou nada no
-painel.
-
-**Não consigo entrar em /admin**
-Confirme que a senha foi gravada: `npx wrangler secret list`. Devem aparecer
-`ADMIN_PASSWORD` e `ADMIN_SESSION_SECRET`. Depois de dez tentativas erradas o seu
-IP fica travado por 15 minutos.
-
-**O link no WhatsApp abre a conversa errada**
-`NEXT_PUBLIC_WHATSAPP_NUMBER` está com formato errado. Só números, começando
-com 55.
-
-**O build falha com `EBUSY` ou `EPERM`**
-Sobrou um servidor de teste rodando. No Windows:
-
-```bash
-taskkill /F /IM workerd.exe
-```
-
----
-
-# Rodando na sua máquina
-
-Os dados da loja já vêm do `.env` versionado. Falta só criar o `.dev.vars`, que
-guarda os segredos locais e **não** vai para o Git:
-
-```
-ADMIN_PASSWORD="qualquer-coisa-local"
-ADMIN_SESSION_SECRET="qualquer-coisa-local"
-```
-
-Tanto o `pnpm dev` quanto o `pnpm cf:preview` leem daí — o `next dev` sobe um
-runtime da Cloudflare por baixo, então os dois enxergam o mesmo arquivo. Nunca
-coloque esses dois valores num `.env`.
-
-Crie o banco local com os 12 exemplos:
-
-```bash
+# 5. Create the local D1 database and seed 12 demo vehicles
 pnpm db:reset:local
-```
 
-```bash
+# 6. Run it
 pnpm dev
 ```
 
-> Se trocar o `database_id` no `wrangler.jsonc`, o banco local zera: o Miniflare
-> guarda um banco separado por id. É só rodar `pnpm db:reset:local` de novo.
+Open [http://localhost:3000](http://localhost:3000). The admin panel is at
+`/admin`, using the password from step 3.
 
-Para testar no runtime real da Cloudflare em vez do Node:
+> **Secrets never go in a `.env` file.** `.env` files are compiled *into* the
+> published bundle. `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` travel through
+> `.dev.vars` locally and `wrangler secret put` in production. `pnpm check:env`
+> enforces this and runs before every build.
+
+### Deploying to Cloudflare
+
+The full walkthrough — creating D1 and R2, setting secrets, pointing a custom
+domain, hardening the WAF — is in **[STARTUP.md](STARTUP.md)** (written in
+Portuguese, for a non-technical shop owner).
+
+The short version:
 
 ```bash
-pnpm cf:preview
+npx wrangler login
+pnpm cf:db:create          # then paste the database_id into wrangler.jsonc
+pnpm cf:r2:create
+pnpm db:migrate:remote
+npx wrangler secret put ADMIN_PASSWORD
+npx wrangler secret put ADMIN_SESSION_SECRET
+pnpm cf:deploy
 ```
+
+### Available Scripts
+
+| Script | What it does |
+| --- | --- |
+| `pnpm dev` | Next dev server with the Cloudflare runtime underneath |
+| `pnpm cf:preview` | Build and run on the real Workers runtime locally |
+| `pnpm cf:deploy` | Check env, build with OpenNext, deploy to Cloudflare |
+| `pnpm db:generate` | Generate a Drizzle migration from the schema |
+| `pnpm db:reset:local` | Rebuild the local D1 database with demo data |
+| `pnpm db:migrate:remote` | Apply pending migrations to production |
+| `pnpm check:env` | Fail if any non-`NEXT_PUBLIC_` variable sits in a `.env` file |
+| `pnpm typecheck` / `pnpm lint` | TypeScript and ESLint |
+
+## 📁 Project Structure
+
+```
+VitrineCar/
+├── src/
+│   ├── app/
+│   │   ├── page.tsx                # Catalog (server-rendered, filter-aware)
+│   │   ├── veiculo/[slug]/         # Listing page + JSON-LD
+│   │   ├── admin/                  # Seller panel + server actions
+│   │   ├── api/admin/fotos/        # Photo upload endpoint (writes to R2)
+│   │   ├── fotos/[...key]/         # Photo delivery with edge caching
+│   │   ├── sitemap.ts, robots.ts   # SEO surface
+│   │   └── not-found.tsx
+│   │
+│   ├── components/
+│   │   ├── catalog/                # Filter bar, chips, empty state
+│   │   ├── vehicle/                # Gallery, lightbox, spec sheet, CTA
+│   │   ├── admin/                  # Editor, photo manager, tag editor, login
+│   │   └── ui/                     # shadcn/ui primitives
+│   │
+│   ├── db/
+│   │   ├── schema.ts               # Drizzle schema (source of truth)
+│   │   ├── queries.ts              # Every read and write against D1
+│   │   └── seed-data.ts            # 12 demo vehicles
+│   │
+│   ├── lib/
+│   │   ├── auth.ts                 # JWT session, constant-time compare, lockout
+│   │   ├── vehicle-kind.ts         # Car vs. motorcycle field definitions
+│   │   ├── filters.ts              # Filter state <-> URL, shared by both sides
+│   │   ├── resize-image.ts         # Browser-side WebP pipeline
+│   │   └── photos.ts, json-ld.ts, env.ts, site.ts
+│   │
+│   └── middleware.ts               # Per-IP rate limiting at the edge
+│
+├── migrations/                     # Drizzle-generated SQL, applied by Wrangler
+├── scripts/
+│   ├── check-env.ts                # Build-time secret guard
+│   └── build-seed.ts               # Turns seed-data.ts into seed.sql
+├── wrangler.jsonc                  # Bindings: D1, R2, rate limiters, assets
+└── STARTUP.md                      # Deployment & operations guide (pt-BR)
+```
+
+## 🏗️ Architecture
+
+Everything runs in a single Cloudflare Worker. There is no origin server, no
+container, and no connection pool — the database and the bucket are *bindings*
+handed to the Worker by the runtime.
+
+```
+                       ┌────────────────────────────────────┐
+   Buyer ──── HTTPS ──▶│ middleware.ts — per-IP rate limit   │──▶ 429 (no DB, no R2)
+                       └───────────────┬────────────────────┘
+                                       │ allowed
+                       ┌───────────────▼────────────────────┐
+                       │ Next.js App Router (RSC)           │
+                       │ server components + server actions │
+                       └───┬───────────────┬────────────────┘
+                           │ Drizzle       │ binding
+                    ┌──────▼──────┐  ┌─────▼───────┐
+                    │ D1 (SQLite) │  │ R2 (photos) │
+                    └─────────────┘  └─────┬───────┘
+                                           │
+                                  edge cache (immutable keys)
+```
+
+### Key design decisions
+
+**Infrastructure-agnostic by intent.** The database is reached through Drizzle and
+the photos through the R2 API. Moving to Postgres and S3 means swapping a driver
+and a deploy command, not rewriting the queries — a deliberate hedge against
+betting the product on one vendor's adapter.
+
+**Reads are server-side, filtering is client-side.** The catalog holds roughly ten
+listings, so the server ships all of them at once and the filter runs in the
+browser — see [Challenge 3](#challenge-3-instant-filters-that-are-still-real-urls).
+
+**Every write goes through a server action that calls `requireSession()` before
+touching the database.** Authorization is never a matter of the UI hiding a
+button: every exported function in a `"use server"` file is a public endpoint, and
+it is treated as one.
+
+**The panel keeps no local copy of the catalog.** Each action writes to D1 and
+refetches. That is one extra round trip per click, in exchange for the screen
+always showing what is actually stored.
+
+## 🗄️ Database Schema
+
+Three tables in SQLite (D1), defined in [`src/db/schema.ts`](src/db/schema.ts) and
+migrated with drizzle-kit.
+
+#### `vehicles`
+
+```
+- id                  integer, PK, autoincrement
+- slug                text, unique      -- "honda-civic-2019"
+- kind                text              -- "carro" | "moto"
+- brand, model, version                 -- text
+- year_fab, year      integer           -- displayed as "2022/2023"
+- price, mileage      integer           -- whole BRL; cars have no cents
+- transmission, fuel, color, engine, plate_end
+- doors               integer           -- cars
+- displacement, gears, start_type, brakes, cooling   -- motorcycles
+- ipva_paid, one_owner, inspection      -- boolean flags
+- status              text              -- "novo" | "disponivel" | "reservado" | "vendido"
+- features            text (JSON array) -- optional equipment
+- tags                text (JSON array) -- free-form seller tags
+- description         text
+- position            integer           -- display order, controlled from the panel
+- created_at, updated_at                -- unix epoch
+
+  indexes: unique(slug), index(position)
+```
+
+#### `vehicle_images`
+
+```
+- id                  integer, PK
+- vehicle_id          integer, FK -> vehicles.id  ON DELETE CASCADE
+- key                 text, nullable    -- R2 object key; null = placeholder art
+- label               text
+- width, height       integer           -- captured at upload, so no runtime probing
+- position            integer           -- the first row is the cover
+
+  index: (vehicle_id, position)
+```
+
+#### `login_attempts`
+
+```
+- id                  integer, PK
+- ip                  text
+- at                  integer           -- unix epoch
+
+  index: (ip, at)
+```
+
+Failed logins only. Rows outside the 15-minute window are discarded during the
+check itself, so there is no cleanup job.
+
+### Relationships
+
+```
+vehicles (1) ──── (N) vehicle_images        [cascade delete]
+```
+
+## 💡 Challenges & Solutions
+
+### Challenge 1: A secret leaked into the published bundle
+
+**Problem:** an `ADMIN_PASSWORD` sitting in `.env.local` for local development was
+compiled into the production bundle and shipped to the browser. The cause is a
+precedence rule that is easy to miss: Next loads `.env.local` **during production
+builds too**, and it outranks `.env.production`. Nothing warned about it — the
+deploy succeeded, and the password was in the JavaScript.
+
+**Solution:** make the mistake impossible to repeat, instead of remembering not to
+repeat it. `.env` files may now contain `NEXT_PUBLIC_*` and nothing else, and a
+guard enforces that before every build:
+
+```ts
+// scripts/check-env.ts — runs as part of pnpm cf:deploy
+for (const file of [".env", ".env.local", ".env.production", ".env.development"]) {
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    const key = line.trim().split("=")[0]?.trim();
+    if (key && !key.startsWith("NEXT_PUBLIC_")) offenders.push({ file, key });
+  }
+}
+if (offenders.length) process.exit(1); // fail the deploy instead of leaking
+```
+
+Secrets now travel through `wrangler secret put` (production) and `.dev.vars`
+(local) — two channels the bundler never reads.
+
+**Result:** a leaked credential became a class of bug the pipeline rejects, rather
+than a rule in a document. The exposed password was rotated, and rotating
+`ADMIN_SESSION_SECRET` alongside it dropped every open session.
+
+### Challenge 2: Surviving a traffic flood on a free-tier budget
+
+**Problem:** a public site eventually attracts scrapers and scanners. On
+usage-billed infrastructure that is not just noise — it burns the D1 read quota
+and R2 operation quota while the owner sleeps.
+
+**Solution:** three layers, each cutting the request earlier than the last.
+
+1. **Per-IP rate limiting in `middleware.ts`**, using Cloudflare's native rate
+   limiting binding. The counter lives in datacenter memory, so it costs no
+   database operation and needs no cleanup. Different parts of the site get their
+   own budget, because their normal traffic shapes differ:
+
+   | Path | Limit per IP | Reasoning |
+   | --- | --- | --- |
+   | Catalog and listing pages | 40 / 10 s | Normal browsing stays far below |
+   | `/fotos/*` | 300 / 60 s | One page opens many photos at once |
+   | `/admin`, `/api/admin` | 60 / 60 s | Room for an album upload, none for brute force |
+
+   Over the limit returns `429` before any D1 query, R2 read, or render happens.
+   Crucially, the limiter **fails open**: if the binding is missing or the counter
+   errors, the request proceeds. A safety brake must never be the reason a site
+   goes down.
+
+2. **Edge caching on photo delivery.** Object keys carry a UUID and are therefore
+   immutable, so responses are stored in `caches.default` with a one-year
+   `immutable` header. A thousand people viewing the same car cost roughly one
+   bucket read.
+
+3. **A strict key format on the photo route.** It accepts only the exact shape the
+   uploader writes:
+
+   ```ts
+   const OBJECT_KEY =
+     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-(thumb|full)\.webp$/;
+   ```
+
+   Without it, the route is a bucket-enumeration tool where every guess is a
+   billable read.
+
+**Result:** a flood is absorbed at the cheapest possible layer, and the failure
+mode of an over-quota free plan is a temporary error page rather than a bill.
+
+### Challenge 3: Instant filters that are still real URLs
+
+**Problem:** filtering server-side means a round trip per click, which feels slow
+on a phone in a dealership lot. Filtering purely client-side means the filtered
+view has no URL — the seller cannot send *"here are all our Hondas under 80k"* on
+WhatsApp, and Google cannot index it.
+
+**Solution:** do both, from one source of truth. The server renders the catalog
+already filtered by the query string; the browser then re-runs the same filter
+functions locally and mirrors state back into the URL with `history.replaceState`:
+
+```
+/?marca=Honda&preco=80-120   →  server-rendered, indexable, shareable
+click a chip                 →  filtered in place, 0 requests, URL updated
+```
+
+Because the catalog is around ten listings, shipping all of them once is cheaper
+than one request per interaction. The filter logic lives in
+[`src/lib/filters.ts`](src/lib/filters.ts) and is imported by both sides, so the
+two paths cannot drift.
+
+**Result:** zero-latency filtering with links that survive being pasted into a
+chat — including a `/?etiqueta=Aceito%20troca` URL for every seller tag.
+
+### Challenge 4: Uploading photos with no credentials and no size ceiling
+
+**Problem:** the usual pattern — mint a pre-signed URL and let the browser upload
+straight to the bucket — exists mostly to dodge a platform's request-body limit,
+and it requires distributing storage credentials. Meanwhile a phone photo is 4–8 MB
+and 4000 px wide, uploaded over dealership 4G, for a card that displays it at 640 px.
+
+**Solution:** move the work to the client, and keep the credentials nowhere.
+
+```ts
+// src/lib/resize-image.ts — runs in the browser, before anything is sent
+const full  = await toWebp(bitmap, VARIANT_WIDTH.full);   // 1600px — gallery, lightbox
+const thumb = await toWebp(bitmap, VARIANT_WIDTH.thumb);  //  640px — cards, thumbnails
+```
+
+Both variants go in one POST to `/api/admin/fotos`, which writes them to R2 through
+the Worker's binding — no access key exists in the application at all. Dimensions
+are recorded at upload time, so nothing has to be probed at render time. Display
+uses a plain `<img>`: the `next/image` optimizer does not run on Workers, and with
+variants generated up front there is nothing left for it to do.
+
+**Result:** a 3.8 MB photo becomes ~13 KB + ~4 KB, uploads are fast on a weak
+connection, the bucket stays tiny, and the 4.5 MB body limit that forces the
+pre-signed-URL dance elsewhere never applies.
+
+### Challenge 5: The middleware that had to keep a deprecated name
+
+**Problem:** Next 16 renamed `middleware.ts` to `proxy.ts` and marked the old name
+deprecated. Renaming the file broke the build outright: any file named `proxy` is
+compiled for the Node runtime, and `@opennextjs/cloudflare` 1.20 only accepts edge
+middleware — `Node.js middleware is not currently supported`.
+
+**Solution:** keep the deprecated name, and write down *why* directly above the
+code, so the next person (including me, in six months) does not "fix" it:
+
+```ts
+// Why middleware.ts and not proxy.ts: Next 16 renamed the file and deprecated
+// this name, but every file called `proxy` compiles to the Node runtime, and the
+// Cloudflare adapter only accepts edge middleware — with proxy.ts the build
+// fails immediately. When the adapter supports Node, rename the file and the
+// function; nothing else changes.
+```
+
+**Result:** the rate limiting layer exists today instead of waiting on an upstream
+release, and the migration path is a two-line change whenever the adapter catches
+up. The same reasoning is applied elsewhere: `node-linker=hoisted` in `.npmrc` (the
+OpenNext adapter rebuilds the dependency tree with symlinks, which Windows refuses
+without Developer Mode) and the deliberate absence of a root `loading.tsx` (which,
+combined with `force-dynamic` in 16.3.2, leaves the fallback stuck on screen) are
+both documented at the point of the decision.
+
+## 🔐 Security
+
+- **JWT sessions** signed HS256 with `jose`, stored in an `HttpOnly`, `SameSite=Lax`,
+  `Secure`-in-production cookie. Rotating `ADMIN_SESSION_SECRET` invalidates every
+  session at once.
+- **Constant-time password comparison.** A plain `===` returns on the first
+  differing byte and leaks, through response timing, how much of the prefix was
+  correct.
+- **Brute-force lockout.** Ten failed attempts from one IP lock it for 15 minutes,
+  tracked in `login_attempts` and keyed on `cf-connecting-ip`.
+- **Server-side authorization on every write.** `requireSession()` runs before the
+  database is touched, inside each server action — never in the component that
+  renders the button.
+- **No storage credentials in the application.** R2 is reached through a Worker
+  binding; there is no access key to leak.
+- **Bucket enumeration blocked** by the strict object-key pattern on the photo route.
+- **Build-time secret guard** (`pnpm check:env`) fails the deploy if any
+  non-`NEXT_PUBLIC_` variable appears in a `.env` file.
+- **A dangerous action was deleted rather than hidden.** The design called for a
+  "restore demo data" button in the panel, which wiped the catalog. Since every
+  exported function in a `"use server"` file is a reachable endpoint, hiding the
+  button would not have removed the endpoint — so the action was removed with it.
+
+## 📊 Performance & Cost
+
+| Aspect | Result |
+| --- | --- |
+| 🖼️ Photo payload | 3.8 MB phone photo → **~13 KB** (1600 px) + **~4 KB** (640 px) WebP |
+| ⚡ Filtering | **0 network requests** per filter interaction |
+| 🗄️ Repeat photo requests | Served from the datacenter cache — **~1 R2 read** regardless of viewers |
+| 🚦 Flood handling | `429` returned **before** any D1 query, R2 read, or render |
+| 💰 Monthly infrastructure cost | **R$ 0** — a domain (~R$ 40/year) is the only real expense |
+
+**Free-tier headroom** (a 10-listing catalog uses a small fraction of each):
+
+| Service | Free allowance | This project |
+| --- | --- | --- |
+| Workers | 100k requests/day | Well below |
+| D1 | 5 GB, 5M reads/day | A few KB |
+| R2 | 10 GB, free egress | ~20 KB per photo |
+
+The tightest constraint is **10 ms of CPU per request** on the Workers free plan.
+Observability is enabled, so CPU time is visible in the Cloudflare dashboard after
+each deploy — the paid plan ($5/month) raises the ceiling to 30 s if a catalog ever
+outgrows it.
+
+## 📚 What I Learned
+
+**Technical Skills**
+
+- **An edge runtime is a different set of constraints, not a smaller Node.** No
+  filesystem, no long-lived process, a hard CPU ceiling per request, and Web Crypto
+  instead of `node:crypto`. Several defaults from the Next ecosystem — the image
+  optimizer, Node middleware, signed-URL uploads — simply do not apply, and knowing
+  *why* each one exists made replacing it straightforward.
+- **Bindings versus credentials.** Reaching D1 and R2 through Worker bindings means
+  there is no access key in the application to rotate, leak, or scope. It changed
+  how I think about what a connection string is actually for.
+- **Where to spend a request.** Shipping ten listings once and filtering locally
+  beats a request per click; a UUID-keyed immutable cache turns a thousand photo
+  views into one bucket read. Both are the same question — what does this
+  interaction really have to cost?
+- **Drizzle + D1 migrations.** A typed schema as the single source of truth, with
+  additive migrations that never drop a column, so a deploy never breaks live
+  listings.
+
+**Best Practices**
+
+- **Encode invariants in the pipeline, not in documentation.** The secret leak was
+  fixed by a script that fails the build. A rule nobody can forget beats a rule
+  written down.
+- **Comment the decision, not the code.** The comments worth having here explain
+  why a deprecated filename is correct, or why a flat `node_modules` is required —
+  the things a reader would otherwise "fix" and break.
+- **Treat every server action as a public endpoint.** UI-level hiding is not
+  authorization, and an unused exported action is still a reachable one.
+- **Design for the operator, not the developer.** [STARTUP.md](STARTUP.md) is
+  written for someone who has never opened a terminal, because that is who has to
+  run this. Writing it exposed several places where the code assumed things the
+  user could not deliver.
+
+## 🗺️ Roadmap
+
+- [ ] Financing simulator on the listing page (down payment + installments)
+- [ ] Per-listing view counters, so the seller can see what is getting attention
+- [ ] Bulk photo reordering across multiple listings
+- [ ] Automated tests: unit coverage for `filters.ts` and `vehicle-kind.ts`, plus an end-to-end pass over the admin flow
+- [ ] Optional multi-seller mode (a real user table, replacing the single password)
+- [ ] Orphan-photo cleanup for uploads abandoned in a cancelled form
+- [ ] Migrate `middleware.ts` → `proxy.ts` once `@opennextjs/cloudflare` supports Node middleware
+
+**Known limitations**
+
+- Photos uploaded into a form that is then cancelled stay in the bucket. A few KB against a 10 GB allowance did not justify the reaping logic.
+- Cloudflare WAF rules and Bot Fight Mode require a custom domain; on `*.workers.dev` only the in-Worker rate limiting applies.
+- The free plan has no automated D1 restore — `wrangler d1 export` is the backup path, documented in [STARTUP.md](STARTUP.md).
+
+## 📄 License
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.
+
+## 👤 Contact
+
+**Luan Henrique Neumann**
+
+- 💼 LinkedIn: [luan-henrique-neumann-dev](https://www.linkedin.com/in/luan-henrique-neumann-dev)
+- 🐱 GitHub: [@Luan-Neumann-Dev](https://github.com/Luan-Neumann-Dev)
+- 📧 Email: luan.neumann.dev@gmail.com
 
 ---
 
-# Como funciona por dentro
+<div align="center">
 
-## Stack
+**⭐ Star this repository if you found it useful!**
 
-| Peça | O quê | Por quê |
-| --- | --- | --- |
-| Next.js 16 (App Router) | Aplicação | Rotas reais (`/veiculo/[slug]`), indexáveis |
-| shadcn/ui + Tailwind 4 | Interface | O design já usa Geist, paleta zinc e raios 6/8px |
-| Cloudflare Workers | Hospedagem | Grátis e sem restrição de uso comercial |
-| D1 (SQLite) | Banco | Grátis; 10 anúncios não encostam nos limites |
-| R2 | Fotos | Grátis, sem cobrança de download, CDN incluso |
-| Drizzle ORM | Acesso ao banco | Trocar D1 por Postgres é mudar o driver, não as queries |
+Built with ☕ on Cloudflare's free tier.
 
-O código é agnóstico de infra de propósito: banco pelo Drizzle e fotos pela API
-do R2. Se o adapter da Cloudflare atrapalhar, migrar para outro lugar é trocar o
-driver e o comando de deploy — não uma reescrita.
-
-## O catálogo
-
-O servidor entrega os ~10 anúncios de uma vez e o filtro roda no navegador, com o
-estado espelhado na URL por `history.replaceState`. O resultado é filtro
-instantâneo (zero requisição por clique) sem abrir mão de link compartilhável:
-`/?marca=Honda&preco=80-120` renderiza filtrado direto do servidor, então o
-vendedor pode mandar esse link no WhatsApp e o Google consegue indexar.
-
-## O painel
-
-Sessão em JWT assinado, guardada num cookie `HttpOnly`. Toda escrita é uma server
-action que chama `requireSession()` **antes de tocar no banco** — a proteção não
-depende da interface esconder botão. Dez tentativas erradas travam o IP por 15
-minutos (a contagem fica na tabela `login_attempts`), e a comparação da senha é
-em tempo constante.
-
-O painel não guarda cópia local do catálogo: cada ação grava no D1 e recarrega do
-servidor. É um ida-e-volta a mais por clique, mas o que aparece na tela é sempre
-o que está no banco.
-
-## As fotos
-
-1. O navegador redimensiona e converte para WebP **antes de enviar**, em dois
-   tamanhos: 1600px (galeria e lightbox) e 640px (cards e miniaturas). Uma foto
-   de 3,8 MB vira ~13 KB + ~4 KB.
-2. Os dois arquivos vão num POST para `/api/admin/fotos`, que grava no R2 pelo
-   binding do Worker.
-
-Não usamos URL assinada: o Worker fala com o bucket por binding, sem credencial
-nenhuma, e não existe aqui o limite de corpo de 4,5 MB que obrigaria a desviar do
-servidor em outras hospedagens.
-
-Para exibir, é `<img>` puro — o otimizador do `next/image` não roda no Workers, e
-não haveria o que otimizar em runtime já que os tamanhos são gravados no upload.
-
-Excluir um anúncio, ou tirar uma foto dele e salvar, apaga as duas variantes do
-R2. Fotos enviadas num formulário que você cancelou ficam órfãs no bucket — são
-alguns KB, e com 10 GB grátis não vale código para caçá-las.
-
-## Decisões que valem saber
-
-- **`node-linker=hoisted` no `.npmrc`** — o adapter do OpenNext recria a árvore
-  de dependências com symlinks, e o Windows só permite isso com Modo
-  Desenvolvedor ligado. Com `node_modules` plano o build passa em qualquer
-  máquina. Não mexa nisso sem testar `pnpm cf:deploy`.
-- **Sem `loading.tsx`** — no Next 16.3.2 um `loading.tsx` na raiz combinado com
-  `dynamic = "force-dynamic"` deixa a fallback presa: o conteúdo real fica oculto
-  no DOM e nunca entra. Como a consulta ao D1 responde junto com o HTML, não há
-  espera para mostrar.
-- **Preço é inteiro em reais** — carro não tem centavos, e assim não existe erro
-  de arredondamento.
-- **Não existe ação de "restaurar exemplos" no painel.** O design previa esse
-  botão, mas ele apagava o catálogo inteiro. Toda função exportada de um arquivo
-  `"use server"` vira um endpoint acessível, então a ação foi removida junto com
-  o botão. Para recarregar os exemplos em desenvolvimento, use
-  `pnpm db:reset:local`.
-
-## Variáveis de ambiente
-
-| Variável | Para quê |
-| --- | --- |
-| `NEXT_PUBLIC_STORE_NAME` | Nome no cabeçalho, rodapé e mensagens do WhatsApp |
-| `NEXT_PUBLIC_STORE_TAGLINE` | Linha abaixo do nome |
-| `NEXT_PUBLIC_STORE_NOTE` | Linha livre no rodapé (horário, forma de atendimento…) |
-| `NEXT_PUBLIC_WHATSAPP_NUMBER` | Número com DDI, só dígitos (ex.: `5519998877665`) |
-| `NEXT_PUBLIC_SITE_URL` | Domínio do site — canonical, sitemap e dados estruturados |
-| `NEXT_PUBLIC_PHOTOS_BASE_URL` | Domínio público do bucket R2 (opcional) |
-| `ADMIN_PASSWORD` | Senha do painel — **segredo**, nunca `NEXT_PUBLIC` |
-| `ADMIN_SESSION_SECRET` | Chave que assina o cookie de sessão — **segredo** |
-
-As `NEXT_PUBLIC_*` são lidas no build e aparecem no HTML — não há segredo nelas,
-e por isso o `.env` e o `.env.production` são versionados.
-
-As duas últimas **nunca** entram em arquivo `.env`: vão por `wrangler secret put`
-em produção e por `.dev.vars` no local. O `pnpm check:env` derruba o build se
-alguma escapar.
+</div>
