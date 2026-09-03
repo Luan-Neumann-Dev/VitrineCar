@@ -39,29 +39,39 @@
 
 ## 🎯 About The Project
 
-Small used-car dealerships in Brazil sell through WhatsApp and Instagram. The car
-lives in a photo album, the price lives in a caption, and nothing is indexable —
-so a buyer searching Google for *"Civic 2019 Ijuí"* never finds the seller who has
-one on the lot.
+I bought a few vehicles and needed to sell them. I also wanted to learn how to
+build a site that handles photos properly. Those two things landed in the same
+month, so the second one became the answer to the first.
 
-**Vitrine Carros** is the missing storefront. Every listing is a real, crawlable
-URL (`/veiculo/honda-civic-2019`) with structured data attached, so the car shows
-up in search results *with its price and year*, not just as a blue link. The
-contact button is still WhatsApp — that is where the deal actually closes — but it
-opens a conversation already carrying the exact vehicle.
+Around here, vehicles get sold on WhatsApp and Instagram: the car lives in a photo
+album, the price lives in a caption, and none of it is indexable. Someone
+searching Google for *"Civic 2019"* never finds the person who has one parked
+outside.
 
-The whole thing is operated by the seller, not by a developer. A dealer with no
-technical background logs into `/admin`, drags photos off their phone, and the
-listing is live. There is no CMS to license and no server to babysit.
+**Vitrine Carros** is the storefront that was missing. Every listing is a real,
+crawlable URL (`/veiculo/honda-civic-2019`) with structured data attached, so the
+car shows up in search results *with its price and year*, not just as a blue link.
+The contact button is still WhatsApp — that is where the deal actually closes —
+but it opens a conversation already carrying the exact vehicle.
 
-The hard constraint that shaped every technical decision: **it has to fit inside
-Cloudflare's free tier and stay there**, even when a scraper finds it at 3 a.m.
+Then something I had not planned for happened: friends started asking whether they
+could list their vehicles on it too. That turned a personal tool into something
+other people rely on, and it is what pushed the project past the point where I
+would otherwise have stopped — the seller panel, motorcycle support, the rate
+limiting. Someone else's listing going down is a different kind of problem than my
+own going down. Everything is run from a phone: log into `/admin`, drag the photos
+in, and the listing is live.
 
 ### Why I Built This
 
-I wanted to build a complete product on an edge runtime rather than a conventional
-Node server — no long-lived process, no filesystem, 10 ms of CPU per request — and
-find out which familiar patterns survive that. Several did not: the `next/image`
+The starting goal was small and concrete — learn how to handle photos end to end:
+uploading them, storing them, and serving them fast without paying for it.
+
+The constraint I set was that the whole thing had to fit inside Cloudflare's free
+tier and stay there, even when a scraper finds it at 3 a.m. That constraint turned
+out to be the most useful part of the project. On an edge runtime there is no
+filesystem, no long-lived process, and 10 ms of CPU per request, so several
+defaults from the Next.js ecosystem simply do not apply: the `next/image`
 optimizer, Node middleware, and signed-URL uploads all had to be replaced with
 something that works inside a Worker. Those replacements are the most interesting
 code in the repository, and they are documented in
@@ -157,7 +167,7 @@ Open [http://localhost:3000](http://localhost:3000). The admin panel is at
 
 The full walkthrough — creating D1 and R2, setting secrets, pointing a custom
 domain, hardening the WAF — is in **[STARTUP.md](STARTUP.md)** (written in
-Portuguese, for a non-technical shop owner).
+Portuguese, for someone standing up their own copy without a developer around).
 
 The short version:
 
@@ -555,10 +565,11 @@ outgrows it.
   the things a reader would otherwise "fix" and break.
 - **Treat every server action as a public endpoint.** UI-level hiding is not
   authorization, and an unused exported action is still a reachable one.
-- **Design for the operator, not the developer.** [STARTUP.md](STARTUP.md) is
-  written for someone who has never opened a terminal, because that is who has to
-  run this. Writing it exposed several places where the code assumed things the
-  user could not deliver.
+- **Design for the operator, not the developer.** Once friends started listing
+  their vehicles here, "it works on my machine" stopped being good enough.
+  [STARTUP.md](STARTUP.md) is written for someone who has never opened a terminal,
+  and writing it exposed several places where the code quietly assumed things the
+  person running it could not deliver.
 
 ## 🗺️ Roadmap
 
